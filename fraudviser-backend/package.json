@@ -1,0 +1,24 @@
+{
+  "name": "fraudviser-backend",
+  "version": "1.0.0",
+  "description": "THE DESIGN AND IMPLEMENTION OF MARKET PRICE AND SCAM RISK ASSESSMENT SYSTEM THAT HELPS NIGERIAN BUYERS AND TRADERS MAKE MORE INFORMED DECISIONS BY COMBINING MARKET-PRICE INFORMATION WITH OBSERVABLE RISK INDICATORS",
+  "main": "index.js",
+  "scripts": {
+    "start": "nodemon index.js",
+    "seed:demo": "node scripts/seedDemo.js",
+    "test": "node --test"
+  },
+  "keywords": [],
+  "author": "Gideon Ikechi",
+  "license": "ISC",
+  "type": "module",
+  "devDependencies": {
+    "nodemon": "^3.1.14"
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^18.0.8",
+    "express": "^5.3.0",
+    "mongoose": "^9.11.3"
+  }
+}
