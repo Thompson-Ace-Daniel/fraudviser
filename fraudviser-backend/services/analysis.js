@@ -5,7 +5,7 @@ import { analyzeWithGemini } from "../gemini.js";
 
 const normalize = (value = "") => value.toString().trim().toLowerCase().replace(/\s+/g, " ");
 export const makeProductKey = ({ category, brand, model, storage, condition }) =>
-  [category, brand, model, storage, condition].map(normalize).join("|");
+  [category, brand, model || "", storage || "", condition].map(normalize).join("|");
 
 export function comparePrices(listingPrice, observations) {
   const sorted = observations.map((item) => item.price).filter((price) => Number.isFinite(price) && price > 0).sort((a, b) => a - b);
@@ -17,7 +17,7 @@ export function comparePrices(listingPrice, observations) {
     available: true, confidence: sorted.length >= 5 ? "moderate" : "low", count: sorted.length,
     referencePrice: Math.round(median), lowestPrice: Math.min(...sorted), highestPrice: Math.max(...sorted),
     signedDeviationPct: Number(deviation.toFixed(1)), absoluteDeviationPct: Number(Math.abs(deviation).toFixed(1)),
-    method: "Median of matching model, storage and condition observations",
+    method: "Median of matching product, specification and condition observations",
     observations: observations.map((item) => ({ price: item.price, source: item.source, sourceType: item.sourceType, observedAt: item.observedAt, retrievedAt: item.retrievedAt })),
     interpretation: deviation <= -25 ? "The listing is substantially below the observed median." : deviation >= 25 ? "The listing is substantially above the observed median." : "The listing is within 25% of the observed median.",
   };
@@ -31,7 +31,7 @@ export function assessRisk(listing, prices) {
   else if (prices.available && prices.signedDeviationPct <= -20) add(15, "Price below observed median", `The asking price is ${Math.abs(prices.signedDeviationPct)}% below the matching median.`, "caution");
   if (!prices.available) add(0, "No comparable observations", "There is not enough matching market data to evaluate the asking price.", "information");
   else if (prices.count < 3) add(10, "Limited market sample", `Only ${prices.count} comparable observation(s) are available; confidence is low.`, "caution");
-  if (!listing.brand?.trim() || !listing.model?.trim() || !listing.storage?.trim()) add(10, "Incomplete specifications", "Brand, model and storage details help verify that comparisons are like for like.", "caution");
+  if (!listing.brand?.trim() || !listing.model?.trim()) add(10, "Incomplete product details", "A brand and model or clear identifying details help verify that comparisons are like for like.", "caution");
   if (!listing.seller?.trim()) add(10, "Seller details not provided", "The seller could not be assessed because no seller name was supplied.", "information");
   if (!listing.marketplace?.trim()) add(5, "Marketplace not provided", "The marketplace hosting this listing was not supplied.", "information");
   const text = `${listing.description || ""} ${listing.observations || ""}`.toLowerCase();
@@ -42,15 +42,15 @@ export function assessRisk(listing, prices) {
   const missing = [];
   if (!listing.seller.trim()) missing.push("Seller name and independently verifiable contact details");
   if (!listing.url?.trim()) missing.push("A listing URL that can be reviewed");
-  if (!listing.storage?.trim()) missing.push("Exact storage or product specification");
+  if (!listing.brand?.trim() || !listing.model?.trim()) missing.push("Brand and model or another precise product identifier");
   if (!prices.available || prices.count < 3) missing.push("More matching market observations");
-  return { score, level, factors, missingInformation: missing, recommendations: ["Meet in a safe public place and inspect the exact item before payment.", "Verify the model, storage, serial/IMEI and proof of ownership independently.", "Use a payment method with buyer protection; avoid deposits or pressure to pay upfront."], disclaimer: "This rule-based score summarizes observable signals. It is not a calibrated probability or a definitive fraud verdict." };
+  return { score, level, factors, missingInformation: missing, recommendations: ["Inspect the exact item and confirm its condition before payment.", "Check product specifications, authenticity marks and proof of ownership where relevant.", "Use a payment method with buyer protection; avoid deposits or pressure to pay upfront."], disclaimer: "This rule-based score summarizes observable signals. It is not a calibrated probability or a definitive fraud verdict." };
 }
 
 const isValidUrl = (value) => { if (!value) return true; try { const url = new URL(value); return ["http:", "https:"].includes(url.protocol); } catch { return false; } };
 
 export async function createAnalysis(input) {
-  const required = ["productName", "category", "model", "condition"];
+  const required = ["productName", "category", "condition"];
   const missing = required.filter((field) => typeof input[field] !== "string" || !input[field].trim());
   if (missing.length) { const error = new Error(`Required fields: ${missing.join(", ")}`); error.status = 400; throw error; }
   const price = Number(input.price);
@@ -68,7 +68,7 @@ export async function createAnalysis(input) {
 
   listing.price = price;
 
-  const productKey = makeProductKey(listing);
+  const productKey = makeProductKey({ ...listing, model: listing.model || listing.productName });
 
   const matches = await PriceRecord.find({
     productKey,
@@ -118,10 +118,10 @@ export async function importPrices(rows, { source = "User import", sourceType = 
     const item = { ...row, price: Number(row.price), source: String(row.source || source).trim(), sourceType,
       observedAt: row.observedAt ? new Date(row.observedAt) : null,
       referenceId: String(row.referenceId || crypto.createHash("sha256").update(JSON.stringify(row)).digest("hex")) };
-    if (!item.productName || !item.category || !item.model || !["new", "used", "refurbished"].includes(item.condition) || !Number.isFinite(item.price) || item.price <= 0 || (item.observedAt && Number.isNaN(item.observedAt.getTime()))) {
-      const error = new Error(`Record ${index + 1} has invalid productName, category, model, condition, price, or observedAt.`); error.status = 400; throw error;
+    if (!item.productName || !item.category || !["new", "used", "refurbished"].includes(item.condition) || !Number.isFinite(item.price) || item.price <= 0 || (item.observedAt && Number.isNaN(item.observedAt.getTime()))) {
+      const error = new Error(`Record ${index + 1} has invalid productName, category, condition, price, or observedAt.`); error.status = 400; throw error;
     }
-    item.productKey = makeProductKey(item); item.retrievedAt = new Date();
+    item.productKey = makeProductKey({ ...item, model: item.model || item.productName }); item.retrievedAt = new Date();
     return item;
   });
   const ops = normalized.map((item) => ({ updateOne: { filter: { source: item.source, referenceId: item.referenceId }, update: { $set: item }, upsert: true } }));

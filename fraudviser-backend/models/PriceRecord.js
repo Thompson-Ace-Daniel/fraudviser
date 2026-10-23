@@ -5,7 +5,7 @@ const priceRecordSchema = new mongoose.Schema({
   productName: { type: String, required: true, trim: true },
   category: { type: String, required: true, trim: true },
   brand: { type: String, trim: true, default: "" },
-  model: { type: String, required: true, trim: true },
+  model: { type: String, trim: true, default: "" },
   storage: { type: String, trim: true, default: "" },
   condition: { type: String, enum: ["new", "used", "refurbished"], required: true },
   price: { type: Number, required: true, min: 1 },

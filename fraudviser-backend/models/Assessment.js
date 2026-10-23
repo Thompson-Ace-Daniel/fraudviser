@@ -6,7 +6,7 @@ const assessmentSchema = new mongoose.Schema(
       productName: { type: String, required: true },
       category: { type: String, required: true },
       brand: { type: String, default: "" },
-      model: { type: String, required: true },
+      model: { type: String, default: "" },
       storage: { type: String, default: "" },
       condition: { type: String, required: true },
       price: { type: Number, required: true, min: 1 },

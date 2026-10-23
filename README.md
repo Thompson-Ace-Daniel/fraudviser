@@ -12,7 +12,7 @@ Fraudviser is a Nigerian-focused online listing comparison and observable risk a
 
 Use Node.js 20+ and a reachable MongoDB server. Each app already has its dependencies installed.
 
-1. Copy `fraudviser-backend/.env.example` to `fraudviser-backend/.env` and set `MONGODB_URL` to your MongoDB connection URI. The API uses the `fraudviser` database. Optionally set `PORT` (default `3000`) and comma-separated `FRONTEND_ORIGIN` (default CORS allows local development origins).
+1. Copy `fraudviser-backend/.env.example` to `fraudviser-backend/.env` and set `MONGODB_URL` to your MongoDB connection URI. The API uses the `fraudviser` database. Set `GEMINI_API_KEY` to enable AI reviews. Optionally set `PORT` (default `3000`) and comma-separated `FRONTEND_ORIGIN` (default CORS allows local development origins).
 2. Optional: create `fraudviser-frontend/.env` with `VITE_BACKEND_BASE_URL=http://localhost:3000/api` if the API uses a different address. The default is shown.
 3. Start MongoDB.
 4. In `fraudviser-backend`, run `npm start`.
@@ -25,7 +25,7 @@ The API health endpoint is `GET http://localhost:3000/api/health`. It reports AP
 
 No marketplace API credentials or documented Nigerian marketplace provider were present in the inspected project. The application does not scrape marketplaces and does not claim to have live prices. Demo records are labelled `demo`, carry the source text “illustrative only, not observed listings,” and have no invented observation dates; user supplied records are labelled `imported`. The API has an explicit refresh response stating that no live provider is configured. The integration point is the normalized `PriceRecord` model and backend market-data route.
 
-The dashboard's **Import JSON** action accepts a JSON array (or `{ "records": [...] }`) with `productName`, `category`, `brand`, `model`, `storage`, `condition`, `price`, and optional `source`, `observedAt`, `location`, `referenceId`. Conditions are `new`, `used`, or `refurbished`; prices are positive NGN amounts. Import only records you are permitted to use. The server normalizes identity, validates rows, upserts by source and reference ID, and labels the records `imported`.
+The dashboard's **Import JSON** action accepts a JSON array (or `{ "records": [...] }`) with `productName`, `category`, `condition`, and `price`, plus optional `brand`, `model`, `storage`, `source`, `observedAt`, `location`, and `referenceId`. Conditions are `new`, `used`, or `refurbished`; prices are positive NGN amounts. Product categories and kinds are not restricted to electronics. Import only records you are permitted to use. The server normalizes identity, validates rows, upserts by source and reference ID, and labels the records `imported`.
 
 ## Analysis method
 

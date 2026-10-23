@@ -4,13 +4,10 @@ import { GoogleGenAI } from "@google/genai";
 const apiKey = process.env.GEMINI_API_KEY;
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
-// Define 5 fallback models in order of preference
+// Keep response time bounded and use current stable model names.
 const FALLBACK_MODELS = [
-  "gemini-3.8-flash",          // Latest production flash model
-  "gemini-3.6-flash",          // Reliable older tier flash 
-  "gemini-3.5-flash-lite",     // Extremely cost-efficient fallback
-  "gemini-3.1-pro-preview",    // Deep reasoning fallback
-  "gemini-4-argon"             // Flagship reasoning model
+  process.env.GEMINI_MODEL || "gemini-3.8-flash",
+  "gemini-3.5-flash-lite",
 ];
 
 export async function analyzeWithGemini(listing, priceAnalysis, risk) {
@@ -45,7 +42,7 @@ Return valid JSON only.
 
   let lastError = null;
 
-  // Loop through the 5 models sequentially until one succeeds
+  // Retry once on a fallback model if the configured model is unavailable.
   for (const model of FALLBACK_MODELS) {
     try {
       const response = await ai.models.generateContent({
