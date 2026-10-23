@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import PriceRecord from "../models/PriceRecord.js";
 import Assessment from "../models/Assessment.js";
+import { analyzeWithGemini } from "../gemini.js";
 
 const normalize = (value = "") => value.toString().trim().toLowerCase().replace(/\s+/g, " ");
 export const makeProductKey = ({ category, brand, model, storage, condition }) =>
@@ -56,15 +57,58 @@ export async function createAnalysis(input) {
   if (!Number.isFinite(price) || price <= 0 || price > 1_000_000_000) { const error = new Error("Price must be a positive amount in Nigerian naira."); error.status = 400; throw error; }
   if (!["new", "used", "refurbished"].includes(input.condition)) { const error = new Error("Condition must be new, used, or refurbished."); error.status = 400; throw error; }
   if (!isValidUrl(input.url)) { const error = new Error("Listing URL must be a valid http or https URL."); error.status = 400; throw error; }
-  const listing = Object.fromEntries(["productName", "category", "brand", "model", "storage", "condition", "seller", "marketplace", "url", "description", "observations"].map((key) => [key, typeof input[key] === "string" ? input[key].trim().slice(0, 1500) : ""]));
+  
+  const listing = Object.fromEntries(
+    ["productName", "category", "brand", "model", "storage", "condition", "seller", "marketplace", "url", "description", "observations"]
+      .map((key) => [
+        key,
+        typeof input[key] === "string" ? input[key].trim().slice(0, 1500) : "",
+      ])
+  );
+
   listing.price = price;
+
   const productKey = makeProductKey(listing);
-  const matches = await PriceRecord.find({ productKey, condition: listing.condition }).sort({ observedAt: -1, retrievedAt: -1 }).limit(100).lean();
+
+  const matches = await PriceRecord.find({
+    productKey,
+    condition: listing.condition,
+  })
+    .sort({ observedAt: -1, retrievedAt: -1 })
+    .limit(100)
+    .lean();
+
   const priceAnalysis = comparePrices(price, matches);
   const risk = assessRisk(listing, priceAnalysis);
-  const assessment = await Assessment.create({ listing, priceAnalysis, risk });
-  return { ...assessment.toObject(), provenance: { sourceTypes: [...new Set(matches.map((item) => item.sourceType))], lastUpdated: matches.reduce((latest, item) => item.retrievedAt && (!latest || item.retrievedAt > latest) ? item.retrievedAt : latest, null) } };
+
+  const aiAssessment = await analyzeWithGemini(
+    listing,
+    priceAnalysis,
+    risk
+  );
+
+  const assessment = await Assessment.create({
+    listing,
+    priceAnalysis,
+    risk,
+    aiAssessment,
+  });
+
+  return {
+    ...assessment.toObject(),
+    provenance: {
+      sourceTypes: [...new Set(matches.map((item) => item.sourceType))],
+      lastUpdated: matches.reduce(
+        (latest, item) =>
+          item.retrievedAt && (!latest || item.retrievedAt > latest)
+            ? item.retrievedAt
+            : latest,
+        null
+      ),
+    },
+  };
 }
+
 
 export async function importPrices(rows, { source = "User import", sourceType = "imported" } = {}) {
   if (!Array.isArray(rows) || !rows.length || rows.length > 2000) { const error = new Error("Provide between 1 and 2,000 price records."); error.status = 400; throw error; }

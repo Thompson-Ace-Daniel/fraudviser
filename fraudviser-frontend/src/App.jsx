@@ -1,14 +1,20 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  cloneElement,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import axios from "axios";
 import {
   Activity,
-  ArrowDownRight,
   ArrowLeft,
   ArrowRight,
   BarChart3,
   Check,
   ChevronDown,
   CircleAlert,
-  Clock3,
   Database,
   History,
   LayoutDashboard,
@@ -21,24 +27,40 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import api from "../api/axios.js";
 
-const money = (value) =>
-  value == null
-    ? "—"
-    : new Intl.NumberFormat("en-NG", {
-        style: "currency",
-        currency: "NGN",
-        maximumFractionDigits: 0,
-      }).format(value);
-const date = (value) =>
-  value
-    ? new Date(value).toLocaleDateString("en-NG", {
-        day: "numeric",
-        month: "short",
-        year: "numeric",
-      })
-    : "—";
+const api = axios.create({
+  baseURL: import.meta.env.VITE_API_URL || "http://localhost:3000/api",
+  headers: {
+    "Content-Type": "application/json",
+  },
+});
+
+const money = (value) => {
+  if (value == null || value === "") return "—";
+
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return "—";
+
+  return new Intl.NumberFormat("en-NG", {
+    style: "currency",
+    currency: "NGN",
+    maximumFractionDigits: 0,
+  }).format(amount);
+};
+
+const date = (value) => {
+  if (!value) return "—";
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "—";
+
+  return parsed.toLocaleDateString("en-NG", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+};
+
 const blankForm = {
   productName: "",
   category: "Smartphones",
@@ -53,14 +75,58 @@ const blankForm = {
   description: "",
   observations: "",
 };
-const initials = (value = "") =>
-  value
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase() || "FV";
+
+const getListing = (item) => item?.listing || item || {};
+
+const getAssessment = (item) => item?.assessment || item?.result || item || {};
+
+const getRiskLevel = (item) => {
+  const result = getAssessment(item);
+
+  const risk = result.risk;
+
+  if (typeof risk === "string") {
+    return result.riskLevel || risk;
+  }
+
+  return (
+    result.riskLevel ||
+    risk?.level ||
+    risk?.riskLevel ||
+    item?.riskLevel ||
+    "Insufficient information"
+  );
+};
+
+const getRiskStyle = (level = "") => {
+  const value = String(level).toLowerCase();
+
+  if (value.includes("elevated") || value.includes("high")) {
+    return {
+      style: "border-red-200 bg-red-50 text-red-700",
+      dot: "bg-red-500",
+    };
+  }
+
+  if (value.includes("moderate") || value.includes("medium")) {
+    return {
+      style: "border-amber-200 bg-amber-50 text-amber-700",
+      dot: "bg-amber-500",
+    };
+  }
+
+  if (value.includes("low")) {
+    return {
+      style: "border-emerald-200 bg-emerald-50 text-emerald-700",
+      dot: "bg-emerald-500",
+    };
+  }
+
+  return {
+    style: "border-slate-200 bg-slate-100 text-slate-600",
+    dot: "bg-slate-400",
+  };
+};
 
 function App() {
   const [view, setView] = useState("overview");
@@ -68,7 +134,7 @@ function App() {
   const [records, setRecords] = useState([]);
   const [history, setHistory] = useState([]);
   const [assessment, setAssessment] = useState(null);
-  const [form, setForm] = useState(blankForm);
+  const [form, setForm] = useState({ ...blankForm });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
@@ -83,27 +149,43 @@ function App() {
           api
             .get("/market-prices")
             .catch(() => ({ data: { items: [], total: 0 } })),
-          api.get("/analysis").catch(() => ({ data: { items: [], total: 0 } })),
+          api
+            .get("/analysis")
+            .catch(() => ({ data: { items: [], total: 0 } })),
         ]);
+
       setHealth(
         healthResponse?.data?.database === "connected"
           ? "connected"
           : healthResponse?.data?.api === "running"
             ? "database-offline"
-            : "offline",
+            : "offline"
       );
-      setRecords(marketResponse.data.items || []);
-      setHistory(historyResponse.data.items || []);
+
+
+      setRecords(
+        Array.isArray(marketResponse?.data?.items)
+          ? marketResponse.data.items
+          : []
+      );
+
+      setHistory(
+        Array.isArray(historyResponse?.data?.items)
+          ? historyResponse.data.items
+          : []
+      );
     } catch {
       setHealth("offline");
     }
   }, []);
+
   useEffect(() => {
-    Promise.resolve().then(refresh);
+    refresh();
   }, [refresh]);
 
   const showAssessment = useCallback(async (item) => {
     setError("");
+
     if (typeof item === "string") {
       try {
         const response = await api.get(`/analysis/${item}`);
@@ -111,7 +193,7 @@ function App() {
         setView("result");
       } catch (err) {
         setError(
-          err.response?.data?.error || "Could not load this assessment.",
+          err.response?.data?.error || "Could not load this assessment."
         );
       }
     } else {
@@ -124,15 +206,20 @@ function App() {
     event.preventDefault();
     setLoading(true);
     setError("");
+
     try {
-      const response = await api.post("/analysis", form);
+      const response = await api.post("/analysis", {
+        ...form,
+        price: Number(form.price),
+      });
+
       setAssessment(response.data);
       setView("result");
       await refresh();
     } catch (err) {
       setError(
         err.response?.data?.error ||
-          "Unable to save assessment. Check that the API and MongoDB are running.",
+          "Unable to save assessment. Check that the API and MongoDB are running."
       );
     } finally {
       setLoading(false);
@@ -140,31 +227,48 @@ function App() {
   };
 
   const startNew = () => {
-    setForm(blankForm);
+    setForm({ ...blankForm });
     setError("");
+    setImportMessage("");
     setView("analyze");
   };
+
   const handleImport = async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
+
     setImportMessage("");
+
     try {
-      const text = await file.text();
-      const recordsToImport = JSON.parse(text);
+      const fileText = await file.text();
+      const importedData = JSON.parse(fileText);
+
+      const recordsToImport = Array.isArray(importedData)
+        ? importedData
+        : importedData.records;
+
+      if (!Array.isArray(recordsToImport)) {
+        throw new Error("Your JSON file must contain an array of records.");
+      }
+
       const response = await api.post("/market-prices/import", {
-        records: Array.isArray(recordsToImport)
-          ? recordsToImport
-          : recordsToImport.records,
-        metadata: { source: file.name, sourceType: "imported" },
+        records: recordsToImport,
+        metadata: {
+          source: file.name,
+          sourceType: "imported",
+        },
       });
+
       setImportMessage(
-        `${response.data.received} permitted observation(s) imported and labelled “imported”.`,
+        `${response.data.received ?? recordsToImport.length} observation(s) imported.`
       );
+
       await refresh();
     } catch (err) {
       setImportMessage(
         err.response?.data?.error ||
-          "Could not import the file. Use a JSON array of records with productName, category, model, condition and price.",
+          err.message ||
+          "Could not import the file. Check your JSON format."
       );
     } finally {
       event.target.value = "";
@@ -173,23 +277,35 @@ function App() {
 
   const filteredHistory = useMemo(
     () =>
-      history.filter((item) =>
-        `${item.listing?.productName} ${item.listing?.model} ${item.listing?.marketplace}`
+      history.filter((item) => {
+        const listing = getListing(item);
+
+        return `${listing.productName || ""} ${
+          listing.model || ""
+        } ${listing.marketplace || ""}`
           .toLowerCase()
-          .includes(query.toLowerCase()),
-      ),
-    [history, query],
+          .includes(query.toLowerCase());
+      }),
+    [history, query]
   );
-  const demoCount = records.filter((item) => item.sourceType === "demo").length;
-  const sources = [...new Set(records.map((item) => item.sourceType))];
+
+  const demoCount = records.filter(
+    (item) => item.sourceType === "demo"
+  ).length;
+
+  const sources = [
+    ...new Set(records.map((item) => item.sourceType).filter(Boolean)),
+  ];
+
   const latestMarketRecord = records.reduce(
     (latest, item) =>
       item.retrievedAt &&
       (!latest || new Date(item.retrievedAt) > new Date(latest))
         ? item.retrievedAt
         : latest,
-    null,
+    null
   );
+
   const dashboardDate = new Intl.DateTimeFormat("en-NG", {
     weekday: "long",
     day: "numeric",
@@ -198,6 +314,7 @@ function App() {
   })
     .format(new Date())
     .toUpperCase();
+
   const pageTitles = {
     overview: ["Overview", "Your marketplace safety dashboard"],
     analyze: ["New analysis", "Evaluate a product listing before you buy"],
@@ -206,48 +323,70 @@ function App() {
   };
 
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <div className="brand">
-          <span className="brand-mark">
+    <div className="min-h-screen bg-slate-50 text-slate-900 md:grid md:grid-cols-[250px_minmax(0,1fr)]">
+      <aside className="flex min-h-screen flex-col border-r border-slate-200 bg-white px-5 py-6">
+        <button
+          type="button"
+          onClick={() => setView("overview")}
+          className="flex items-center gap-3 text-left text-xl font-bold tracking-tight"
+        >
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-700 text-white">
             <Shield size={21} strokeWidth={2.4} />
           </span>
+
           <span>
-            Fraudviser<span className="brand-period">.</span>
-            <small>BUY WITH CLARITY</small>
+            Fraudviser<span className="text-emerald-600">.</span>
+            <span className="mt-0.5 block text-[9px] font-bold tracking-[0.18em] text-slate-400">
+              BUY WITH CLARITY
+            </span>
           </span>
+        </button>
+
+        <div className="mb-3 mt-10 px-3 text-xs font-bold tracking-[0.16em] text-slate-400">
+          WORKSPACE
         </div>
-        <div className="workspace-label">WORKSPACE</div>
-        <nav className="nav-list" aria-label="Main navigation">
-          <button
-            className={`nav-item ${view === "overview" ? "selected" : ""}`}
+
+        <nav className="flex flex-col gap-2" aria-label="Main navigation">
+          <NavButton
+            active={view === "overview"}
+            icon={<LayoutDashboard size={18} />}
             onClick={() => setView("overview")}
           >
-            <LayoutDashboard size={18} />
             Overview
-          </button>
-          <button
-            className={`nav-item ${view === "analyze" ? "selected" : ""}`}
+          </NavButton>
+
+          <NavButton
+            active={view === "analyze"}
+            icon={<Activity size={18} />}
             onClick={startNew}
           >
-            <Activity size={18} />
             Analyse a listing
-          </button>
-          <button
-            className={`nav-item ${view === "history" ? "selected" : ""}`}
+          </NavButton>
+
+          <NavButton
+            active={view === "history"}
+            icon={<History size={18} />}
             onClick={() => setView("history")}
+            count={history.length}
           >
-            <History size={18} />
-            History<span className="nav-count">{history.length}</span>
-          </button>
+            History
+          </NavButton>
         </nav>
-        <div className="side-bottom">
-          <div className="data-status">
+
+        <div className="mt-auto pt-10">
+          <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
             <span
-              className={`status-dot ${health === "connected" ? "green" : health === "checking" ? "amber" : "red"}`}
+              className={`h-2.5 w-2.5 shrink-0 rounded-full ${
+                health === "connected"
+                  ? "bg-emerald-500"
+                  : health === "checking"
+                    ? "animate-pulse bg-amber-500"
+                    : "bg-red-500"
+              }`}
             />
-            <div>
-              <strong>
+
+            <div className="min-w-0">
+              <strong className="block text-xs font-semibold text-slate-800">
                 {health === "connected"
                   ? "Database connected"
                   : health === "database-offline"
@@ -256,235 +395,313 @@ function App() {
                       ? "Checking connection"
                       : "API unavailable"}
               </strong>
-              <small>{records.length} market observations</small>
+
+              <span className="mt-1 block text-xs text-slate-500">
+                {records.length} market observations
+              </span>
             </div>
           </div>
-          <div className="profile">
-            <div className="avatar">FV</div>
-            <div>
-              <strong>Fraudviser demo</strong>
-              <small>Local workspace</small>
+
+          <div className="mt-4 flex items-center gap-3 border-t border-slate-200 pt-4">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-800">
+              FV
             </div>
-            <ChevronDown size={16} className="muted" />
+
+            <div className="min-w-0 flex-1">
+              <strong className="block text-sm font-semibold">
+                Fraudviser demo
+              </strong>
+              <span className="block text-xs text-slate-500">
+                Local workspace
+              </span>
+            </div>
+
+            <ChevronDown size={16} className="text-slate-400" />
           </div>
         </div>
       </aside>
-      <main className="main-area">
-        <header className="topbar">
-          <div className="breadcrumb">
+
+      <main className="min-w-0">
+        <header className="sticky top-0 z-10 flex min-h-[72px] flex-wrap items-center justify-between gap-4 border-b border-slate-200 bg-white/95 px-5 py-4 backdrop-blur sm:px-8">
+          <div className="flex items-center gap-2 text-sm text-slate-500">
             <span>Fraudviser</span>
-            <span className="crumb-slash">/</span>
-            <strong>{pageTitles[view][0]}</strong>
+            <span className="text-slate-300">/</span>
+            <strong className="text-slate-900">{pageTitles[view][0]}</strong>
           </div>
-          <div className="top-actions">
-            <span
-              className={`connection-pill ${health === "connected" ? "online" : ""}`}
-            >
-              <span className="status-dot" />
+
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600">
+              <span
+                className={`h-2 w-2 rounded-full ${
+                  health === "connected" ? "bg-emerald-500" : "bg-amber-500"
+                }`}
+              />
               {health === "connected"
                 ? "System operational"
                 : health === "database-offline"
                   ? "Database disconnected"
-                  : "API unavailable"}
+                  : health === "checking"
+                    ? "Checking system"
+                    : "API unavailable"}
             </span>
+
             <button
-              className="button button-dark button-small"
+              type="button"
+              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-800"
               onClick={startNew}
             >
-              <Plus size={16} /> New analysis
+              <Plus size={16} />
+              New analysis
             </button>
           </div>
         </header>
-        <div className="content-wrap">
+
+        <div className="mx-auto w-full max-w-[1500px] p-5 sm:p-8">
           {error && (
-            <div className="alert alert-error">
-              <CircleAlert size={18} />
-              <span>{error}</span>
-              <button onClick={() => setError("")} aria-label="Dismiss error">
+            <div
+              role="alert"
+              className="mb-6 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800"
+            >
+              <CircleAlert size={18} className="mt-0.5 shrink-0" />
+              <span className="flex-1">{error}</span>
+              <button
+                type="button"
+                onClick={() => setError("")}
+                aria-label="Dismiss error"
+                className="rounded-lg p-1 hover:bg-red-100"
+              >
                 <X size={16} />
               </button>
             </div>
           )}
+
           {view === "overview" && (
             <>
-              <div className="page-heading">
+              <div className="mb-8 flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
                 <div>
-                  <div className="eyebrow">
-                    {dashboardDate} <span className="eyebrow-dot">·</span>{" "}
+                  <div className="text-xs font-bold tracking-[0.13em] text-slate-500">
+                    {dashboardDate} <span className="text-emerald-600">·</span>{" "}
                     NIGERIA
                   </div>
-                  <h1>
-                    Make your next purchase
-                    <br className="mobile-break" /> with confidence.
+
+                  <h1 className="mt-3 max-w-2xl text-3xl font-bold leading-tight tracking-tight text-emerald-950 sm:text-4xl lg:text-5xl">
+                    Make your next purchase with confidence.
                   </h1>
-                  <p>
+
+                  <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600">
                     Compare a listing against market observations and see the
                     signals behind its risk assessment.
                   </p>
                 </div>
-                <button className="button button-dark" onClick={startNew}>
-                  <Plus size={17} /> Analyse a listing <ArrowRight size={16} />
+
+                <button
+                  type="button"
+                  className="inline-flex min-h-11 items-center justify-center gap-2 self-start rounded-xl bg-emerald-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-800 lg:self-auto"
+                  onClick={startNew}
+                >
+                  <Plus size={17} />
+                  Analyse a listing
+                  <ArrowRight size={16} />
                 </button>
               </div>
-              <div className="welcome-banner">
-                <div className="banner-icon">
+
+              <div className="mb-7 flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
                   <ShieldCheck size={23} />
                 </div>
-                <div>
-                  <strong>A clearer way to shop online</strong>
-                  <p>
+
+                <div className="flex-1">
+                  <strong className="text-base font-semibold text-slate-900">
+                    A clearer way to shop online
+                  </strong>
+                  <p className="mt-1 text-sm leading-6 text-slate-600">
                     Fraudviser compares product listings with recorded
                     observations and explains the signals it can actually see.
                   </p>
                 </div>
-                <span className="banner-tag">DECISION SUPPORT</span>
+
+                <span className="self-start rounded-full bg-slate-100 px-3 py-1.5 text-xs font-bold tracking-wide text-slate-600">
+                  DECISION SUPPORT
+                </span>
               </div>
-              <section className="stats-grid">
+
+              <section className="mb-9 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 <StatCard
-                  icon={<Database size={18} />}
+                  icon={<Database size={19} />}
                   label="Market observations"
                   value={records.length.toLocaleString()}
                   note={
                     records.length
-                      ? `${demoCount} demonstration · ${records.length - demoCount} other`
+                      ? `${demoCount} demonstration · ${
+                          records.length - demoCount
+                        } other`
                       : "Import or seed data to begin"
                   }
-                  accent="blue"
                 />
+
                 <StatCard
-                  icon={<History size={18} />}
+                  icon={<History size={19} />}
                   label="Assessments made"
                   value={history.length.toString()}
-                  note="Saved to your assessment history"
-                  accent="violet"
+                  note="Saved assessment history"
                 />
+
                 <StatCard
-                  icon={<Activity size={18} />}
+                  icon={<Activity size={19} />}
                   label="Market data status"
                   value={records.length ? "Available" : "No records yet"}
                   note={
                     latestMarketRecord
-                      ? `Last recorded update ${date(latestMarketRecord)} · ${sources.join(", ")}`
-                      : "No fabricated prices are shown"
+                      ? `Last update ${date(latestMarketRecord)}${
+                          sources.length ? ` · ${sources.join(", ")}` : ""
+                        }`
+                      : "No market observations recorded"
                   }
-                  accent="green"
                 />
               </section>
-              <div className="section-heading">
-                <div>
-                  <h2>Recent assessments</h2>
-                  <p>Your latest listing checks appear here.</p>
-                </div>
-                <button
-                  className="text-button"
-                  onClick={() => setView("history")}
-                >
-                  View history <ArrowRight size={15} />
-                </button>
-              </div>
+
+              <SectionHeading
+                title="Recent assessments"
+                description="Your latest listing checks appear here."
+                action={
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-700 hover:text-emerald-900"
+                    onClick={() => setView("history")}
+                  >
+                    View history <ArrowRight size={15} />
+                  </button>
+                }
+              />
+
               <AssessmentTable
                 items={history.slice(0, 5)}
                 onOpen={showAssessment}
                 onNew={startNew}
               />
-              <section className="data-card">
-                <div className="data-card-copy">
-                  <div className="card-icon">
-                    <Database size={18} />
+
+              <section className="mt-7 flex flex-col gap-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:flex-row lg:items-center lg:justify-between">
+                <div className="flex items-start gap-4">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
+                    <Database size={19} />
                   </div>
+
                   <div>
-                    <h3>Market data &amp; provenance</h3>
-                    <p>
-                      Data is never presented as live unless a verified provider
-                      supplies it. Seed demo observations explicitly or import
-                      records you are permitted to use.
+                    <h3 className="font-semibold text-slate-900">
+                      Market data and sources
+                    </h3>
+                    <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-600">
+                      Data is not presented as live unless a verified provider
+                      supplies it. Import records you are permitted to use, or
+                      seed clearly labelled demonstration data.
                     </p>
+
                     {importMessage && (
-                      <div className="import-message">{importMessage}</div>
+                      <p
+                        role="status"
+                        className="mt-3 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800"
+                      >
+                        {importMessage}
+                      </p>
                     )}
                   </div>
                 </div>
-                <div className="data-card-actions">
-                  <button
-                    className="button button-outline"
-                    onClick={() => importRef.current?.click()}
-                  >
-                    <Upload size={16} /> Import JSON
-                  </button>
-                  <button
-                    className="button button-quiet"
-                    onClick={async () => {
-                      try {
-                        const r = await api.post("/market-prices/refresh");
-                        setImportMessage(
-                          r.data.message ||
-                            "No external live provider is configured.",
-                        );
-                      } catch (err) {
-                        setImportMessage(
-                          err.response?.data?.error ||
-                            "No external live provider is configured. Import data or run npm run seed:demo.",
-                        );
-                      }
-                    }}
-                  >
-                    <Activity size={16} /> Refresh source
-                  </button>
+
+                <div className="flex flex-wrap gap-2">
                   <input
                     ref={importRef}
-                    className="visually-hidden"
+                    className="hidden"
                     type="file"
                     accept="application/json,.json"
                     onChange={handleImport}
                   />
+
+                  <button
+                    type="button"
+                    className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                    onClick={() => importRef.current?.click()}
+                  >
+                    <Upload size={16} />
+                    Import JSON
+                  </button>
+
+                  <button
+                    type="button"
+                    className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                    onClick={async () => {
+                      try {
+                        const response = await api.post(
+                          "/market-prices/refresh"
+                        );
+
+                        setImportMessage(
+                          response.data.message || "Refresh request completed."
+                        );
+                        await refresh();
+                      } catch (err) {
+                        setImportMessage(
+                          err.response?.data?.error ||
+                            "No external live provider is configured. Import data or run npm run seed:demo."
+                        );
+                      }
+                    }}
+                  >
+                    <Activity size={16} />
+                    Refresh source
+                  </button>
                 </div>
               </section>
-              <div className="data-note">
-                <CircleAlert size={16} />
-                <span>
+
+              <div className="mt-4 flex flex-col gap-3 rounded-xl bg-slate-100 p-4 text-sm text-slate-600 sm:flex-row sm:items-center">
+                <CircleAlert size={17} className="shrink-0 text-slate-500" />
+                <span className="flex-1 leading-6">
                   Demonstration observations are illustrative only. They are
-                  clearly identified and are not live marketplace listings.
+                  not live marketplace listings, and a risk assessment cannot
+                  guarantee that a seller is safe or fraudulent.
                 </span>
-                <button className="text-button" onClick={refresh}>
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 self-start font-semibold text-emerald-700 hover:text-emerald-900"
+                  onClick={refresh}
+                >
                   Refresh <ArrowRight size={14} />
                 </button>
               </div>
             </>
           )}
+
           {view === "analyze" && (
             <>
-              <div className="compact-heading">
-                <div>
-                  <div className="eyebrow">LISTING EVALUATION</div>
-                  <h1>{pageTitles.analyze[0]}</h1>
-                  <p>
-                    {pageTitles.analyze[1]}. All fields marked required must be
-                    completed.
-                  </p>
-                </div>
-                <button
-                  className="button button-outline"
-                  onClick={() => setView("overview")}
-                >
-                  <ArrowLeft size={16} /> Dashboard
-                </button>
-              </div>
-              <form className="form-card" onSubmit={handleAnalyze}>
-                <div className="form-section-title">
-                  <span className="step-number">01</span>
-                  <div>
-                    <h2>Product details</h2>
-                    <p>
-                      Be specific so we can find genuinely comparable
-                      observations.
-                    </p>
-                  </div>
-                </div>
-                <div className="form-grid">
+              <PageHeading
+                eyebrow="LISTING EVALUATION"
+                title="New analysis"
+                description="Evaluate a product listing before you buy."
+                action={
+                  <button
+                    type="button"
+                    className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                    onClick={() => setView("overview")}
+                  >
+                    <ArrowLeft size={16} /> Dashboard
+                  </button>
+                }
+              />
+
+              <form
+                className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8"
+                onSubmit={handleAnalyze}
+              >
+                <FormSection
+                  number="01"
+                  title="Product details"
+                  description="Be specific so we can find genuinely comparable observations."
+                />
+
+                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
                   <Field label="Product name" required>
                     <input
                       required
-                      maxLength="120"
+                      maxLength={120}
                       placeholder="e.g. Apple iPhone 13"
                       value={form.productName}
                       onChange={(e) =>
@@ -492,8 +709,10 @@ function App() {
                       }
                     />
                   </Field>
+
                   <Field label="Category" required>
                     <select
+                      required
                       value={form.category}
                       onChange={(e) =>
                         setForm({ ...form, category: e.target.value })
@@ -506,6 +725,7 @@ function App() {
                       <option>Other electronics</option>
                     </select>
                   </Field>
+
                   <Field label="Brand">
                     <input
                       placeholder="e.g. Apple"
@@ -515,6 +735,7 @@ function App() {
                       }
                     />
                   </Field>
+
                   <Field label="Model" required>
                     <input
                       required
@@ -525,6 +746,7 @@ function App() {
                       }
                     />
                   </Field>
+
                   <Field label="Storage / specification" required>
                     <input
                       required
@@ -535,8 +757,10 @@ function App() {
                       }
                     />
                   </Field>
+
                   <Field label="Condition" required>
                     <select
+                      required
                       value={form.condition}
                       onChange={(e) =>
                         setForm({ ...form, condition: e.target.value })
@@ -548,21 +772,23 @@ function App() {
                     </select>
                   </Field>
                 </div>
-                <div className="form-section-title section-spaced">
-                  <span className="step-number">02</span>
-                  <div>
-                    <h2>Listing details</h2>
-                    <p>
-                      These details provide context for the observed risk
-                      signals.
-                    </p>
-                  </div>
+
+                <div className="mt-10">
+                  <FormSection
+                    number="02"
+                    title="Listing details"
+                    description="Add the price and available seller information."
+                  />
                 </div>
-                <div className="form-grid">
-                  <Field label="Asking price" required>
-                    <div className="input-prefix">
-                      <span>₦</span>
+
+                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                  <Field label="Asking price (NGN)" required>
+                    <div className="flex overflow-hidden rounded-xl border border-slate-300 transition focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-100">
+                      <span className="flex items-center border-r border-slate-200 bg-slate-50 px-4 text-sm font-semibold text-slate-500">
+                        ₦
+                      </span>
                       <input
+                        className="min-w-0 flex-1 border-0 px-3 py-3 text-sm outline-none focus:ring-0"
                         required
                         type="number"
                         min="1"
@@ -576,9 +802,10 @@ function App() {
                       />
                     </div>
                   </Field>
+
                   <Field label="Seller name">
                     <input
-                      maxLength="120"
+                      maxLength={120}
                       placeholder="Seller or shop name"
                       value={form.seller}
                       onChange={(e) =>
@@ -586,9 +813,10 @@ function App() {
                       }
                     />
                   </Field>
+
                   <Field label="Marketplace">
                     <input
-                      maxLength="120"
+                      maxLength={120}
                       placeholder="e.g. Jiji, Instagram, shop"
                       value={form.marketplace}
                       onChange={(e) =>
@@ -596,6 +824,7 @@ function App() {
                       }
                     />
                   </Field>
+
                   <Field label="Listing URL">
                     <input
                       type="url"
@@ -606,10 +835,11 @@ function App() {
                       }
                     />
                   </Field>
-                  <Field label="Seller description" className="field-wide">
+
+                  <Field label="Seller description">
                     <textarea
-                      rows="3"
-                      maxLength="1500"
+                      rows={3}
+                      maxLength={1500}
                       placeholder="Copy the relevant listing description, if available"
                       value={form.description}
                       onChange={(e) =>
@@ -617,10 +847,11 @@ function App() {
                       }
                     />
                   </Field>
-                  <Field label="Additional observations" className="field-wide">
+
+                  <Field label="Additional observations">
                     <textarea
-                      rows="3"
-                      maxLength="1500"
+                      rows={3}
+                      maxLength={1500}
                       placeholder="Anything you noticed about the offer or seller"
                       value={form.observations}
                       onChange={(e) =>
@@ -629,30 +860,34 @@ function App() {
                     />
                   </Field>
                 </div>
-                <div className="form-footnote">
-                  <Shield size={16} />
-                  <span>
-                    Your assessment is saved to this local demonstration
-                    database. Risk scores are explainable decision-support
-                    signals, not fraud probabilities.
-                  </span>
+
+                <div className="mt-7 flex items-start gap-3 rounded-xl bg-emerald-50 p-4 text-sm leading-6 text-emerald-900">
+                  <Shield size={17} className="mt-1 shrink-0" />
+                  <p>
+                    Your assessment is saved to the database connected to your
+                    API. Risk scores are decision-support signals, not verified
+                    probabilities of fraud.
+                  </p>
                 </div>
-                <div className="form-actions">
+
+                <div className="mt-7 flex flex-col-reverse gap-3 border-t border-slate-200 pt-6 sm:flex-row sm:justify-end">
                   <button
                     type="button"
-                    className="button button-outline"
+                    className="min-h-11 rounded-xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
                     onClick={() => setView("overview")}
                   >
                     Cancel
                   </button>
+
                   <button
                     type="submit"
-                    className="button button-dark"
                     disabled={loading || health !== "connected"}
+                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-emerald-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {loading ? (
                       <>
-                        <LoaderCircle className="spin" size={17} /> Analysing...
+                        <LoaderCircle size={17} className="animate-spin" />
+                        Analysing...
                       </>
                     ) : (
                       <>
@@ -661,40 +896,50 @@ function App() {
                     )}
                   </button>
                 </div>
+
                 {health !== "connected" && (
-                  <p className="inline-help">
+                  <p className="mt-4 text-right text-sm text-amber-700">
                     Connect the API and MongoDB before submitting an assessment.
                   </p>
                 )}
               </form>
             </>
           )}
+
           {view === "history" && (
             <>
-              <div className="compact-heading">
-                <div>
-                  <div className="eyebrow">YOUR SAVED CHECKS</div>
-                  <h1>{pageTitles.history[0]}</h1>
-                  <p>{pageTitles.history[1]}.</p>
-                </div>
-                <button className="button button-dark" onClick={startNew}>
-                  <Plus size={16} /> New analysis
-                </button>
-              </div>
-              <div className="history-tools">
-                <div className="searchbox">
-                  <Search size={17} />
+              <PageHeading
+                eyebrow="YOUR SAVED CHECKS"
+                title="Assessment history"
+                description="Review your recent product checks."
+                action={
+                  <button
+                    type="button"
+                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-emerald-700 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-800"
+                    onClick={startNew}
+                  >
+                    <Plus size={16} /> New analysis
+                  </button>
+                }
+              />
+
+              <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <label className="flex min-h-11 flex-1 items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 focus-within:border-emerald-600 sm:max-w-md">
+                  <Search size={17} className="shrink-0 text-slate-400" />
                   <input
+                    className="min-w-0 flex-1 border-0 bg-transparent py-3 text-sm outline-none focus:ring-0"
                     placeholder="Search product or marketplace..."
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                   />
-                </div>
-                <span>
+                </label>
+
+                <span className="text-sm text-slate-500">
                   {filteredHistory.length} assessment
                   {filteredHistory.length === 1 ? "" : "s"}
                 </span>
               </div>
+
               <AssessmentTable
                 items={filteredHistory}
                 onOpen={showAssessment}
@@ -702,6 +947,7 @@ function App() {
               />
             </>
           )}
+
           {view === "result" && assessment && (
             <ResultView
               assessment={assessment}
@@ -715,353 +961,671 @@ function App() {
   );
 }
 
-function StatCard({ icon, label, value, note, accent }) {
+function NavButton({ active, icon, count, onClick, children }) {
   return (
-    <article className="stat-card">
-      <div className={`stat-icon ${accent}`}>{icon}</div>
-      <div className="stat-label">{label}</div>
-      <div className="stat-value">{value}</div>
-      <div className="stat-note">{note}</div>
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex min-h-11 items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition ${
+        active
+          ? "bg-emerald-700 text-white"
+          : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+      }`}
+    >
+      {icon}
+      <span className="flex-1">{children}</span>
+
+      {count !== undefined && (
+        <span
+          className={`rounded-full px-2 py-0.5 text-xs ${
+            active
+              ? "bg-white/15 text-white"
+              : "bg-slate-100 text-slate-500"
+          }`}
+        >
+          {count}
+        </span>
+      )}
+    </button>
+  );
+}
+
+function StatCard({ icon, label, value, note }) {
+  return (
+    <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-emerald-200 hover:shadow-md">
+      <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
+        {icon}
+      </div>
+
+      <div className="text-sm font-medium text-slate-500">{label}</div>
+      <div className="my-2 break-words text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+        {value}
+      </div>
+      <div className="text-sm leading-6 text-slate-500">{note}</div>
     </article>
   );
 }
-function Field({ label, required, className = "", children }) {
+
+function SectionHeading({ title, description, action }) {
   return (
-    <label className={`field ${className}`}>
+    <div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
+      <div>
+        <h2 className="text-xl font-bold tracking-tight text-slate-900">
+          {title}
+        </h2>
+        <p className="mt-1 text-sm text-slate-500">{description}</p>
+      </div>
+      {action}
+    </div>
+  );
+}
+
+function PageHeading({ eyebrow, title, description, action }) {
+  return (
+    <div className="mb-8 flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
+      <div>
+        <div className="text-xs font-bold tracking-[0.15em] text-emerald-700">
+          {eyebrow}
+        </div>
+        <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
+          {title}
+        </h1>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500 sm:text-base">
+          {description}
+        </p>
+      </div>
+      {action}
+    </div>
+  );
+}
+
+function FormSection({ number, title, description }) {
+  return (
+    <div className="mb-6 flex items-start gap-4">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-sm font-bold text-emerald-800">
+        {number}
+      </span>
+      <div>
+        <h2 className="font-semibold text-slate-900">{title}</h2>
+        <p className="mt-1 text-sm leading-6 text-slate-500">{description}</p>
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, required = false, children }) {
+  const controlClass =
+    "mt-2 block w-full rounded-xl border border-slate-300 bg-white px-3.5 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100";
+
+  let child = children;
+
+  if (children && children.type !== "div") {
+    child = cloneElement(children, {
+      className: `${controlClass} ${children.props.className || ""}`.trim(),
+    });
+  }
+
+  return (
+    <label className="block min-w-0 text-sm font-medium text-slate-700">
       <span>
         {label}
-        {required && <i> *</i>}
+        {required && <span className="ml-1 text-red-500">*</span>}
       </span>
-      {children}
+      {child}
     </label>
   );
 }
+
 function RiskBadge({ level }) {
-  const cls = level?.startsWith("Elevated")
-    ? "risk-elevated"
-    : level?.startsWith("Moderate")
-      ? "risk-moderate"
-      : level?.startsWith("Low")
-        ? "risk-low"
-        : "risk-insufficient";
+  const risk = getRiskStyle(level);
+
   return (
-    <span className={`risk-badge ${cls}`}>
-      <span />
-      {level || "Insufficient information"}
+    <span
+      className={`inline-flex max-w-full items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold ${risk.style}`}
+    >
+      <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${risk.dot}`} />
+      <span className="truncate">{level}</span>
     </span>
   );
 }
+
 function AssessmentTable({ items, onOpen, onNew }) {
-  if (!items.length)
+  if (!items.length) {
     return (
-      <div className="empty-state">
-        <div className="empty-icon">
-          <Smartphone size={22} />
+      <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-5 py-14 text-center">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
+          <Smartphone size={24} />
         </div>
-        <h3>No assessments yet</h3>
-        <p>
-          Start with a product listing to see its market comparison and
-          observable risk signals.
+
+        <h3 className="mt-4 text-lg font-semibold text-slate-900">
+          No assessments yet
+        </h3>
+
+        <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">
+          Analyse a product listing to start building your assessment history.
         </p>
-        <button className="button button-dark" onClick={onNew}>
-          <Plus size={16} /> Analyse your first listing
+
+        <button
+          type="button"
+          className="mt-5 inline-flex min-h-10 items-center gap-2 rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800"
+          onClick={onNew}
+        >
+          <Plus size={16} /> Start an analysis
         </button>
       </div>
     );
+  }
+
   return (
-    <div className="table-card">
-      <div className="table-scroll">
-        <table>
+    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[800px] border-collapse text-left">
           <thead>
-            <tr>
-              <th>PRODUCT</th>
-              <th>LISTING PRICE</th>
-              <th>REFERENCE PRICE</th>
-              <th>OBSERVED RISK</th>
-              <th>DATE</th>
-              <th />
+            <tr className="border-b border-slate-200 bg-slate-50">
+              {[
+                "Product",
+                "Marketplace",
+                "Asking price",
+                "Risk assessment",
+                "Date",
+                "",
+              ].map((heading, index) => (
+                <th
+                  key={`${heading}-${index}`}
+                  className="px-5 py-4 text-xs font-bold uppercase tracking-wide text-slate-500"
+                >
+                  {heading}
+                </th>
+              ))}
             </tr>
           </thead>
-          <tbody>
-            {items.map((item) => (
-              <tr
-                key={item._id}
-                onClick={() => onOpen(item._id)}
-                className="clickable-row"
-              >
-                <td>
-                  <div className="product-cell">
-                    <span className="product-thumb">
-                      {initials(
-                        item.listing?.brand || item.listing?.productName,
-                      )}
-                    </span>
-                    <span>
-                      <strong>{item.listing?.productName}</strong>
-                      <small>
-                        {[item.listing?.storage, item.listing?.condition]
-                          .filter(Boolean)
-                          .join(" · ")}
-                      </small>
-                    </span>
-                  </div>
-                </td>
-                <td className="price-cell">{money(item.listing?.price)}</td>
-                <td>{money(item.priceAnalysis?.referencePrice)}</td>
-                <td>
-                  <RiskBadge level={item.risk?.level} />
-                </td>
-                <td>{date(item.createdAt)}</td>
-                <td>
-                  <button className="row-arrow" aria-label="Open assessment">
-                    <ArrowRight size={16} />
-                  </button>
-                </td>
-              </tr>
-            ))}
+
+          <tbody className="divide-y divide-slate-100">
+            {items.map((item) => {
+              const listing = getListing(item);
+              const level = getRiskLevel(item);
+              const id = item._id || item.id;
+
+              return (
+                <tr
+                  key={id || `${listing.productName}-${listing.model}`}
+                  className="transition hover:bg-slate-50"
+                >
+                  <td className="px-5 py-4">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
+                        <Smartphone size={18} />
+                      </div>
+                      <div className="min-w-0">
+                        <strong className="block max-w-[220px] truncate text-sm font-semibold text-slate-900">
+                          {listing.productName || "Unnamed product"}
+                        </strong>
+                        <span className="mt-1 block text-xs text-slate-500">
+                          {listing.model || "Model not specified"}
+                        </span>
+                      </div>
+                    </div>
+                  </td>
+
+                  <td className="px-5 py-4 text-sm text-slate-600">
+                    {listing.marketplace || "Not provided"}
+                  </td>
+
+                  <td className="whitespace-nowrap px-5 py-4 text-sm font-semibold text-slate-800">
+                    {money(listing.price)}
+                  </td>
+
+                  <td className="px-5 py-4">
+                    <RiskBadge level={level} />
+                  </td>
+
+                  <td className="whitespace-nowrap px-5 py-4 text-sm text-slate-500">
+                    {date(item.createdAt || item.assessedAt)}
+                  </td>
+
+                  <td className="px-5 py-4">
+                    <button
+                      type="button"
+                      className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700"
+                      aria-label="View assessment"
+                      title="View assessment"
+                      onClick={() => onOpen(id || item)}
+                    >
+                      <ArrowRight size={17} />
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
     </div>
   );
 }
+
 function ResultView({ assessment, onBack, onNew }) {
-  const listing = assessment.listing || {},
-    prices = assessment.priceAnalysis || {},
-    risk = assessment.risk || {};
-  const rangeMax = Math.max(prices.highestPrice || 0, listing.price || 0, 1);
-  const marker = (value) =>
-    `${Math.max(0, Math.min(100, ((value || 0) / rangeMax) * 100))}%`;
+  const listing = getListing(assessment);
+  const result = getAssessment(assessment);
+  const level = getRiskLevel(assessment);
+
+  const summary =
+    result.summary ||
+    result.explanation ||
+    result.recommendation ||
+    "Review the available information carefully before making a purchase.";
+
+  const signals = result.signals || result.riskFactors || result.reasons || [];
+
+  const signalList = Array.isArray(signals)
+    ? signals
+    : Object.entries(signals).map(([key, value]) => ({
+        title: key,
+        description:
+          typeof value === "string" ? value : JSON.stringify(value),
+      }));
+
+  const score =
+    result.score ?? result.riskScore ?? result.assessmentScore ?? null;
+
+  const scoreNumber =
+    score !== null && Number.isFinite(Number(score))
+      ? Number(score)
+      : null;
+
+  // Gemini AI assessment is read from the saved assessment.
+  const ai = assessment?.aiAssessment || result.aiAssessment || {};
+
+  const aiAvailable = ai.available === true;
+
+  const aiSummary =
+    ai.summary || ai.explanation || ai.assessment || "";
+
+  const aiWarnings = Array.isArray(ai.warningSigns) ? ai.warningSigns : [];
+  const aiAdvice = Array.isArray(ai.safetyAdvice) ? ai.safetyAdvice : [];
+  const aiLimitations = ai.limitations || "";
+
   return (
     <>
-      <div className="result-top">
-        <button className="back-link" onClick={onBack}>
-          <ArrowLeft size={16} /> Back to history
-        </button>
-        <span className="report-date">
-          <Clock3 size={14} /> Assessed {date(assessment.createdAt)}
-        </span>
-      </div>
-      <div className="report-title">
-        <div>
-          <div className="eyebrow">ASSESSMENT REPORT</div>
-          <h1>{listing.productName || "Product listing"}</h1>
-          <p>
-            {[listing.brand, listing.model, listing.storage, listing.condition]
-              .filter(Boolean)
-              .join(" · ")}{" "}
-            {listing.marketplace ? `· ${listing.marketplace}` : ""}
-          </p>
+      <PageHeading
+        eyebrow="ASSESSMENT REPORT"
+        title="Analysis report"
+        description="Review the recorded details and signals for this listing."
+        action={
+          <button
+            type="button"
+            className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            onClick={onBack}
+          >
+            <ArrowLeft size={16} /> Back
+          </button>
+        }
+      />
+
+      <section className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex items-start gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
+              <ShieldCheck size={24} />
+            </div>
+
+            <div>
+              <p className="text-xs font-bold tracking-[0.14em] text-slate-500">
+                LISTING ASSESSED
+              </p>
+              <h2 className="mt-2 text-xl font-bold text-slate-950 sm:text-2xl">
+                {listing.productName || "Unnamed product"}
+              </h2>
+              <p className="mt-1 text-sm text-slate-500">
+                {[listing.brand, listing.model, listing.storage]
+                  .filter(Boolean)
+                  .join(" · ") || "No additional specifications provided"}
+              </p>
+            </div>
+          </div>
+
+          <RiskBadge level={level} />
         </div>
-        <RiskBadge level={risk.level} />
-      </div>
-      <div className="result-grid">
-        <section className="result-card price-result">
-          <div className="result-card-head">
-            <div>
-              <div className="eyebrow">PRICE COMPARISON</div>
-              <h2>How does the price compare?</h2>
-            </div>
-            <span className="comparison-chip">
-              <BarChart3 size={15} /> {prices.count || 0} matches
-            </span>
-          </div>
-          <div className="price-metrics">
-            <div>
-              <span>Your listing</span>
-              <strong>{money(listing.price)}</strong>
-            </div>
-            <div className="metric-divider" />
-            <div>
-              <span>Reference median</span>
-              <strong>{money(prices.referencePrice)}</strong>
-            </div>
-            <div className="deviation-metric">
-              <ArrowDownRight size={16} />
-              <span>
-                {prices.available
-                  ? `${prices.signedDeviationPct > 0 ? "+" : ""}${prices.signedDeviationPct}%`
-                  : "Unavailable"}
-              </span>
-              <small>deviation</small>
-            </div>
-          </div>
-          {prices.available ? (
-            <>
-              <div className="price-chart">
-                <div className="price-axis">
-                  <span>₦0</span>
-                  <span>{money(rangeMax)}</span>
-                </div>
-                <div className="price-track">
-                  <span
-                    className="range-bar"
-                    style={{
-                      left: marker(prices.lowestPrice),
-                      width: `${Math.max(3, ((prices.highestPrice - prices.lowestPrice) / rangeMax) * 100)}%`,
-                    }}
-                  />
-                  <span
-                    className="marker marker-listing"
-                    style={{ left: marker(listing.price) }}
-                    title="Listing price"
-                  >
-                    <i />
-                  </span>
-                  <span
-                    className="marker marker-median"
-                    style={{ left: marker(prices.referencePrice) }}
-                    title="Reference median"
-                  >
-                    <i />
-                  </span>
-                </div>
-                <div className="chart-legend">
-                  <span>
-                    <i className="legend-listing" /> Your listing ·{" "}
-                    {money(listing.price)}
-                  </span>
-                  <span>
-                    <i className="legend-median" /> Median ·{" "}
-                    {money(prices.referencePrice)}
-                  </span>
-                </div>
-                <div className="range-summary">
-                  <span>Observed range</span>
-                  <strong>
-                    {money(prices.lowestPrice)} — {money(prices.highestPrice)}
-                  </strong>
-                </div>
-              </div>
-              <div className="method-note">
-                <Check size={15} />
-                <span>
-                  {prices.method}.{" "}
-                  {prices.confidence === "low"
-                    ? "Confidence is low because fewer than five matching observations are available."
-                    : "Confidence is moderate; this remains a small observational sample."}
-                </span>
-              </div>
-              <div className="observation-list">
-                <div className="observation-heading">
-                  <strong>Matching observations</strong>
-                  <span>Source and recorded date</span>
-                </div>
-                {prices.observations?.map((item, index) => (
-                  <div
-                    className="observation-row"
-                    key={`${item.source}-${item.retrievedAt}-${index}`}
-                  >
-                    <span>
-                      <i className={`source-dot source-${item.sourceType}`} />
-                      {item.sourceType} · {item.source}
-                    </span>
-                    <strong>{money(item.price)}</strong>
-                    <small>{date(item.observedAt || item.retrievedAt)}</small>
-                  </div>
-                ))}
-              </div>
-            </>
-          ) : (
-            <div className="no-data-note">
-              <Database size={19} />
-              <span>
-                <strong>No comparable market estimate available</strong>
-                <small>
-                  There are no observations for this exact model, specification
-                  and condition. Import or seed matching records and analyse
-                  again.
-                </small>
-              </span>
-            </div>
-          )}
-        </section>
-        <section className="result-card risk-result">
-          <div className="eyebrow">OBSERVED RISK SIGNALS</div>
-          <h2>Risk assessment</h2>
-          <div className="score-row">
-            <div
-              className={`score-ring ${risk.score >= 50 ? "high" : risk.score >= 25 ? "medium" : "low"}`}
-            >
-              <strong>{risk.score ?? 0}</strong>
-              <span>/ 100</span>
-            </div>
-            <div>
-              <RiskBadge level={risk.level} />
-              <p>Rule-based signal score</p>
-            </div>
-          </div>
-          <div className="score-meter">
-            <span style={{ width: `${risk.score ?? 0}%` }} />
-          </div>
-          <div className="risk-disclaimer">{risk.disclaimer}</div>
-          <h3 className="subsection-title">What contributed</h3>
-          <div className="factor-list">
-            {risk.factors?.length ? (
-              risk.factors.map((factor, i) => (
-                <div className="factor" key={`${factor.title}-${i}`}>
-                  <span className={`factor-icon ${factor.severity}`}>
-                    <CircleAlert size={15} />
-                  </span>
-                  <div>
-                    <strong>{factor.title}</strong>
-                    <p>{factor.explanation}</p>
-                  </div>
-                  <span className="factor-weight">+{factor.weight}</span>
-                </div>
-              ))
-            ) : (
-              <div className="factor factor-empty">
-                <span className="factor-icon low">
-                  <ShieldCheck size={15} />
-                </span>
-                <div>
-                  <strong>No triggered warning rules</strong>
-                  <p>This does not establish that the seller is legitimate.</p>
-                </div>
-              </div>
-            )}
-          </div>
-          {!!risk.missingInformation?.length && (
-            <>
-              <h3 className="subsection-title">Information that would help</h3>
-              <ul className="missing-list">
-                {risk.missingInformation.map((item) => (
-                  <li key={item}>{item}</li>
-                ))}
-              </ul>
-            </>
-          )}
-        </section>
-      </div>
-      <section className="result-card recommendations">
-        <div className="recommendation-heading">
-          <div className="recommend-icon">
-            <ShieldCheck size={18} />
-          </div>
-          <div>
-            <h2>Before you make a payment</h2>
-            <p>Practical checks to reduce the chance of a bad purchase.</p>
-          </div>
-        </div>
-        <div className="recommend-grid">
-          {(risk.recommendations || []).map((item, i) => (
-            <div className="recommend-item" key={item}>
-              <span>0{i + 1}</span>
-              <p>{item}</p>
-            </div>
-          ))}
+
+        <div className="mt-7 grid grid-cols-1 gap-4 border-t border-slate-100 pt-6 sm:grid-cols-3">
+          <ResultDetail label="Asking price" value={money(listing.price)} />
+          <ResultDetail
+            label="Condition"
+            value={listing.condition || "Not provided"}
+          />
+          <ResultDetail
+            label="Marketplace"
+            value={listing.marketplace || "Not provided"}
+          />
         </div>
       </section>
-      <div className="result-actions">
-        <button className="button button-outline" onClick={onBack}>
-          <ArrowLeft size={16} /> Assessment history
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(280px,0.8fr)]">
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
+              <BarChart3 size={20} />
+            </div>
+            <div>
+              <h3 className="font-semibold text-slate-900">
+                Assessment findings
+              </h3>
+              <p className="mt-1 text-sm text-slate-500">
+                Information returned by the analysis API
+              </p>
+            </div>
+          </div>
+
+          {scoreNumber !== null && (
+            <div className="mt-6 rounded-xl bg-slate-50 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm font-medium text-slate-600">
+                  Reported assessment score
+                </span>
+                <strong className="text-xl font-bold text-slate-900">
+                  {scoreNumber}
+                </strong>
+              </div>
+            </div>
+          )}
+
+          <div className="mt-6">
+            <h4 className="text-sm font-semibold text-slate-800">Summary</h4>
+            <p className="mt-2 whitespace-pre-line text-sm leading-7 text-slate-600">
+              {summary}
+            </p>
+          </div>
+
+          <div className="mt-7 border-t border-slate-100 pt-6">
+            <h4 className="text-sm font-semibold text-slate-800">
+              Signals and observations
+            </h4>
+
+            {signalList.length > 0 ? (
+              <div className="mt-4 space-y-3">
+                {signalList.map((signal, index) => {
+                  const title =
+                    typeof signal === "string"
+                      ? `Observation ${index + 1}`
+                      : signal.title ||
+                        signal.name ||
+                        signal.type ||
+                        `Observation ${index + 1}`;
+
+                  const description =
+                    typeof signal === "string"
+                      ? signal
+                      : signal.description ||
+                        signal.message ||
+                        signal.reason ||
+                        signal.detail ||
+                        "No further explanation provided.";
+
+                  return (
+                    <div
+                      key={`${title}-${index}`}
+                      className="flex items-start gap-3 rounded-xl border border-slate-200 p-4"
+                    >
+                      <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">
+                        <Check size={15} />
+                      </div>
+                      <div className="min-w-0">
+                        <h5 className="text-sm font-semibold text-slate-800">
+                          {title}
+                        </h5>
+                        <p className="mt-1 break-words text-sm leading-6 text-slate-600">
+                          {description}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="mt-3 rounded-xl bg-slate-50 p-4 text-sm leading-6 text-slate-500">
+                The API did not return a separate list of signals for this
+                assessment. Check the summary and listing information above.
+              </p>
+            )}
+          </div>
+        </section>
+
+        <div className="space-y-6">
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
+                <Database size={19} />
+              </div>
+              <h3 className="font-semibold text-slate-900">
+                Listing information
+              </h3>
+            </div>
+
+            <div className="mt-5 space-y-4">
+              <ResultDetail
+                label="Seller"
+                value={listing.seller || "Not provided"}
+              />
+              <ResultDetail
+                label="Category"
+                value={listing.category || "Not provided"}
+              />
+              <ResultDetail
+                label="Assessment date"
+                value={date(assessment.createdAt || assessment.assessedAt)}
+              />
+
+              {listing.url && (
+                <div>
+                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    Listing URL
+                  </span>
+                  <a
+                    href={listing.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-1 block break-all text-sm font-medium text-emerald-700 underline underline-offset-2 hover:text-emerald-900"
+                  >
+                    Open listing
+                  </a>
+                </div>
+              )}
+            </div>
+          </section>
+
+          {listing.description && (
+            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <h3 className="font-semibold text-slate-900">
+                Seller description
+              </h3>
+              <p className="mt-3 whitespace-pre-line break-words text-sm leading-6 text-slate-600">
+                {listing.description}
+              </p>
+            </section>
+          )}
+
+          {listing.observations && (
+            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <h3 className="font-semibold text-slate-900">
+                Your observations
+              </h3>
+              <p className="mt-3 whitespace-pre-line break-words text-sm leading-6 text-slate-600">
+                {listing.observations}
+              </p>
+            </section>
+          )}
+        </div>
+      </div>
+
+      {/* Gemini AI assessment */}
+      <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
+        <div className="flex items-start gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
+            <ShieldCheck size={22} />
+          </div>
+
+          <div className="min-w-0">
+            <h3 className="font-semibold text-slate-900">
+              Gemini AI review
+            </h3>
+            <p className="mt-1 text-sm leading-6 text-slate-500">
+              Additional guidance based on the information supplied with this
+              listing.
+            </p>
+          </div>
+
+          <span
+            className={`ml-auto shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold ${
+              aiAvailable
+                ? "bg-emerald-50 text-emerald-700"
+                : "bg-amber-50 text-amber-700"
+            }`}
+          >
+            {aiAvailable ? "AI review available" : "AI review unavailable"}
+          </span>
+        </div>
+
+        {aiAvailable ? (
+          <div className="mt-6 space-y-6">
+            <div>
+              <h4 className="text-sm font-semibold text-slate-800">
+                AI summary
+              </h4>
+              <p className="mt-2 whitespace-pre-line text-sm leading-7 text-slate-600">
+                {aiSummary || "No AI summary was returned."}
+              </p>
+            </div>
+
+            <div className="border-t border-slate-100 pt-5">
+              <h4 className="text-sm font-semibold text-slate-800">
+                Warning signs
+              </h4>
+
+              {aiWarnings.length ? (
+                <ul className="mt-3 space-y-2">
+                  {aiWarnings.map((warning, index) => (
+                    <li
+                      key={index}
+                      className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-900"
+                    >
+                      <CircleAlert size={17} className="mt-1 shrink-0" />
+                      <span>
+                        {typeof warning === "string"
+                          ? warning
+                          : warning.description ||
+                            warning.message ||
+                            warning.title ||
+                            JSON.stringify(warning)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-2 text-sm leading-6 text-slate-500">
+                  No specific warning signs were returned. This does not prove
+                  the listing or seller is safe.
+                </p>
+              )}
+            </div>
+
+            <div className="border-t border-slate-100 pt-5">
+              <h4 className="text-sm font-semibold text-slate-800">
+                Safety advice
+              </h4>
+
+              {aiAdvice.length ? (
+                <ul className="mt-3 space-y-3">
+                  {aiAdvice.map((advice, index) => (
+                    <li key={index} className="flex items-start gap-3">
+                      <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-700">
+                        <Check size={14} />
+                      </span>
+                      <span className="text-sm leading-6 text-slate-600">
+                        {typeof advice === "string"
+                          ? advice
+                          : advice.description ||
+                            advice.message ||
+                            advice.title ||
+                            JSON.stringify(advice)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-2 text-sm leading-6 text-slate-500">
+                  No additional safety advice was returned.
+                </p>
+              )}
+            </div>
+
+            {aiLimitations && (
+              <div className="rounded-xl bg-slate-50 p-4">
+                <h4 className="text-sm font-semibold text-slate-800">
+                  Limitations
+                </h4>
+                <p className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-600">
+                  {aiLimitations}
+                </p>
+              </div>
+            )}
+
+            {ai.model && (
+              <p className="text-xs text-slate-400">
+                AI model: {ai.model}
+              </p>
+            )}
+          </div>
+        ) : (
+          <div className="mt-5 rounded-xl bg-amber-50 p-4">
+            <p className="text-sm leading-6 text-amber-900">
+              {ai.explanation ||
+                ai.error ||
+                "The AI review could not be generated for this assessment. The rule-based findings above are still available."}
+            </p>
+          </div>
+        )}
+      </section>
+
+      <div className="mt-6 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
+        <CircleAlert size={18} className="mt-0.5 shrink-0" />
+        <p>
+          This report supports your decision; it does not prove that a seller
+          is genuine or fraudulent. Verify the product, seller identity, and
+          payment arrangements independently before paying.
+        </p>
+      </div>
+
+      <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
+        <button
+          type="button"
+          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          onClick={onBack}
+        >
+          <History size={16} /> Assessment history
         </button>
-        <button className="button button-dark" onClick={onNew}>
+
+        <button
+          type="button"
+          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-emerald-700 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-800"
+          onClick={onNew}
+        >
           <Plus size={16} /> Analyse another listing
         </button>
       </div>
     </>
+  );
+}
+
+function ResultDetail({ label, value }) {
+  return (
+    <div className="min-w-0">
+      <span className="block text-xs font-semibold uppercase tracking-wide text-slate-400">
+        {label}
+      </span>
+      <span className="mt-1 block break-words text-sm font-semibold capitalize text-slate-800">
+        {value || "Not provided"}
+      </span>
+    </div>
   );
 }
 
