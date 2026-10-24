@@ -22,7 +22,7 @@ try {
   const ops = records.map(([productName, brand, model, storage, condition, price], index) => {
     const item = { productName, category: "Smartphones", brand, model, storage, condition, price, source: "Demonstration fixture — illustrative only, not observed listings", sourceType: "demo", observedAt: null, retrievedAt: new Date(now), location: "Nigeria (illustrative dataset)", referenceId: `fraudviser-demo-v1-${index + 1}` };
     item.productKey = makeProductKey(item);
-    return { updateOne: { filter: { source, referenceId: item.referenceId }, update: { $set: item }, upsert: true } };
+    return { updateOne: { filter: { source: item.source, referenceId: item.referenceId }, update: { $set: item }, upsert: true } };
   });
   const result = await PriceRecord.bulkWrite(ops);
   console.log(`Demo data ready: ${result.upsertedCount} inserted, ${result.modifiedCount} updated. All observations are labelled demo.`);

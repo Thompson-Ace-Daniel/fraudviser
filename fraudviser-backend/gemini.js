@@ -10,25 +10,33 @@ const FALLBACK_MODELS = [
   "gemini-3.5-flash-lite",
 ];
 
-export async function analyzeWithGemini(listing, priceAnalysis, risk) {
+export async function analyzeWithGemini(listing, priceAnalysis, risk, userRole = "buyer") {
   if (!ai) {
     return {
       available: false,
       explanation:
-        "Gemini is not configured. Check GEMINI_API_KEY in your backend .env file.",
+        "The AI review is unavailable right now. The rule-based analysis and available price information are still shown.",
     };
   }
 
   const prompt = `
 You are Fraudviser, an assistant that helps users evaluate online product listings.
 
+The account holder is a ${userRole}. Tailor the perspective accordingly: buyers need verification and payment advice; sellers need fair pricing context and clear listing information that helps establish trust.
+
 Analyze the following information:
 ${JSON.stringify({ listing, priceAnalysis, existingRiskAssessment: risk })}
 
 Return a concise assessment with these fields:
-- summary: a short explanation of the listing's observable risk signals.
-- warningSigns: an array of warning signs supported by the supplied information.
-- safetyAdvice: an array of practical safety steps.
+- summary: a clear overview for the current account holder and the main signals.
+- priceContext: explain the price comparison and sample-size limits; do not invent external data.
+- warningSigns: an array of specific warning signs supported by supplied information. Keep it empty if none were observed.
+- positiveSignals: an array of details that are useful or consistent, without treating them as verification.
+- safetyAdvice: an array of practical steps tailored to this product category.
+- questionsForSeller: three to five concise questions the buyer can ask before paying.
+- recommendedAction: one short next action for this account holder (for example, inspect, compare more, improve the listing details, or pause and verify).
+- conditionPriceContext: explain how the available prices differ by condition. Use only supplied condition ranges; if absent, state that no range is available.
+- listingImprovements: three specific improvements a seller can make to clarify this listing, or an empty array for buyers.
 - limitations: explain what cannot be verified from the supplied information.
 
 Rules:
@@ -54,6 +62,7 @@ Return valid JSON only.
             type: "OBJECT",
             properties: {
               summary: { type: "STRING" },
+              priceContext: { type: "STRING" },
               warningSigns: {
                 type: "ARRAY",
                 items: { type: "STRING" }, // FIXED: Changed from lowercase "string"
@@ -62,9 +71,20 @@ Return valid JSON only.
                 type: "ARRAY",
                 items: { type: "STRING" }, // FIXED: Changed from lowercase "string"
               },
+              positiveSignals: {
+                type: "ARRAY",
+                items: { type: "STRING" },
+              },
+              questionsForSeller: {
+                type: "ARRAY",
+                items: { type: "STRING" },
+              },
+              recommendedAction: { type: "STRING" },
+              conditionPriceContext: { type: "STRING" },
+              listingImprovements: { type: "ARRAY", items: { type: "STRING" } },
               limitations: { type: "STRING" },
             },
-            required: ["summary", "warningSigns", "safetyAdvice", "limitations"],
+            required: ["summary", "priceContext", "warningSigns", "positiveSignals", "safetyAdvice", "questionsForSeller", "recommendedAction", "conditionPriceContext", "listingImprovements", "limitations"],
           },
         },
       });
@@ -98,6 +118,6 @@ Return valid JSON only.
   return {
     available: false,
     explanation:
-      "AI analysis is temporarily unavailable across all models. The existing rule-based assessment is still available.",
+      "The AI review is unavailable right now. The rule-based analysis and available price information are still shown.",
   };
 }

@@ -4,7 +4,8 @@
   "description": "THE DESIGN AND IMPLEMENTION OF MARKET PRICE AND SCAM RISK ASSESSMENT SYSTEM THAT HELPS NIGERIAN BUYERS AND TRADERS MAKE MORE INFORMED DECISIONS BY COMBINING MARKET-PRICE INFORMATION WITH OBSERVABLE RISK INDICATORS",
   "main": "index.js",
   "scripts": {
-    "start": "nodemon index.js",
+    "start": "node index.js",
+    "dev": "nodemon index.js",
     "seed:demo": "node scripts/seedDemo.js",
     "test": "node --test"
   },

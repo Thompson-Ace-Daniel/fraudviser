@@ -7,7 +7,7 @@ const priceRecordSchema = new mongoose.Schema({
   brand: { type: String, trim: true, default: "" },
   model: { type: String, trim: true, default: "" },
   storage: { type: String, trim: true, default: "" },
-  condition: { type: String, enum: ["new", "used", "refurbished"], required: true },
+  condition: { type: String, enum: ["new", "used", "refurbished", "open_box", "near_expiry", "service"], required: true },
   price: { type: Number, required: true, min: 1 },
   source: { type: String, required: true, trim: true },
   sourceType: { type: String, enum: ["live", "cached", "imported", "demo"], required: true },

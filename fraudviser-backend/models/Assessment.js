@@ -2,9 +2,12 @@ import mongoose from "mongoose";
 
 const assessmentSchema = new mongoose.Schema(
   {
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
+    accountRole: { type: String, enum: ["buyer", "seller"], default: "buyer", required: true },
     listing: {
       productName: { type: String, required: true },
       category: { type: String, required: true },
+      productType: { type: String, enum: ["goods", "service"], default: "goods" },
       brand: { type: String, default: "" },
       model: { type: String, default: "" },
       storage: { type: String, default: "" },
