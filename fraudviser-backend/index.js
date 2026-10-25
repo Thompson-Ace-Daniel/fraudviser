@@ -6,7 +6,7 @@ import { DATABASE_URL, PORT } from "./constants/utils.js";
 import { apiRouter } from "./routes/api.js";
 import { authRouter } from "./routes/auth.js";
 
-
+// Safe IPv4 routing for serverless clouds
 dns.setDefaultResultOrder("ipv4first");
 
 const app = express();
@@ -27,6 +27,38 @@ app.use(
 );
 
 app.use(express.json({ limit: "1mb" }));
+
+// --- 🔌 Serverless Database Connection Middleware ---
+// This ensures MongoDB is connected before processing ANY route requests on Vercel
+const ensureDatabaseConnected = async (req, res, next) => {
+  if (mongoose.connection.readyState >= 1) {
+    return next();
+  }
+
+  if (!DATABASE_URL) {
+    console.warn(
+      "⚠️ DATABASE_URL is not configured; database endpoints are unavailable.",
+    );
+    return next();
+  }
+
+  try {
+    await mongoose.connect(DATABASE_URL, {
+      serverSelectionTimeoutMS: 5000,
+      connectTimeoutMS: 10000,
+      socketTimeoutMS: 45000,
+    });
+    console.log("✅ MongoDB cloud connection established");
+    next();
+  } catch (error) {
+    console.error(`❌ MongoDB cloud connection failed: ${error.message}`);
+    // Gracefully handle database drops without freezing the execution context
+    res.status(500).json({ error: "Database connection failed" });
+  }
+};
+
+// Global Middleware Engagement
+app.use(ensureDatabaseConnected);
 
 // --- Base Routes ---
 app.get("/", (_req, res) => res.json({ message: "Fraudviser API" }));
@@ -54,32 +86,11 @@ app.use((err, _req, res, _next) => {
     .json({ error: err.status ? err.message : "Unexpected server error" });
 });
 
-// --- Serverless / Local Hybrid Startup ---
-const connectDatabase = async () => {
-  if (mongoose.connection.readyState >= 1) return;
-
-  if (!DATABASE_URL) {
-    console.warn(
-      "⚠️ DATABASE_URL is not configured; database endpoints are unavailable.",
-    );
-    return;
-  }
-
-  try {
-    await mongoose.connect(DATABASE_URL, { serverSelectionTimeoutMS: 5000 });
-    console.log("✅ MongoDB connected successfully");
-  } catch (error) {
-    console.error(`❌ MongoDB connection failed: ${error.message}`);
-  }
-};
-
+// --- Local Hybrid Listening Execution ---
 if (process.env.VERCEL !== "1") {
-  app.listen(PORT, async () => {
-    await connectDatabase();
+  app.listen(PORT, () => {
     console.log(`🚀 Fraudviser API listening locally on port ${PORT}`);
   });
-} else {
-  connectDatabase();
 }
 
 const shutdown = async () => {
