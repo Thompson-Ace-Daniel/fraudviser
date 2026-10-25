@@ -71,14 +71,14 @@ async function limitAuthAttempts(req, res, next) {
           $inc: { count: 1 },
           $setOnInsert: { expiresAt: new Date((window + 2) * windowMs) },
         },
-        { upsert: true, new: true, setDefaultsOnInsert: true },
+        { upsert: true, returnDocument: "after", setDefaultsOnInsert: true },
       );
     } catch (error) {
       if (error.code !== 11000) throw error;
       bucket = await AuthAttempt.findOneAndUpdate(
         { bucketKey },
         { $inc: { count: 1 } },
-        { new: true },
+        { returnDocument: "after" },
       );
     }
     if (bucket.count > 12)
