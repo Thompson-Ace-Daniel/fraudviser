@@ -39,7 +39,7 @@ if (!DATABASE_URL)
   );
 else
   mongoose
-    .connect(DATABASE_URL, { serverSelectionTimeoutMS: 50000 })
+    .connect(DATABASE_URL, { serverSelectionTimeoutMS: 5000 })
     .then(() => console.log("MongoDB connected"))
     .catch((error) =>
       console.error(`MongoDB connection failed: ${error.message}`),
