@@ -6,7 +6,7 @@ import App from "./App.jsx";
 import LandingPage from "./pages/LandingPage.jsx";
 import AuthPage from "./pages/AuthPage.jsx";
 import ProtectedRoute from "./pages/ProtectedRoute.jsx";
-import { AuthProvider } from "./pages/AuthContext.jsx";
+import { AuthProvider } from "../context/AuthContext.jsx";
 
 createRoot(document.getElementById("root")).render(
   <StrictMode>
