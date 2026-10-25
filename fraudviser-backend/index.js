@@ -1,4 +1,3 @@
-import "dotenv/config"; // Must be on top to ensure env variables exist immediately
 import express from "express";
 import cors from "cors";
 import mongoose from "mongoose";
@@ -7,7 +6,7 @@ import { DATABASE_URL, PORT } from "./constants/utils.js";
 import { apiRouter } from "./routes/api.js";
 import { authRouter } from "./routes/auth.js";
 
-// Safe IPv4 resolution workaround for Vercel sandbox environments
+
 dns.setDefaultResultOrder("ipv4first");
 
 const app = express();

@@ -9,7 +9,12 @@ const FALLBACK_MODELS = [
   "gemini-3.5-flash-lite",
 ];
 
-export async function analyzeWithGemini(listing, priceAnalysis, risk, userRole = "buyer") {
+export async function analyzeWithGemini(
+  listing,
+  priceAnalysis,
+  risk,
+  userRole = "buyer",
+) {
   if (!ai) {
     return {
       available: false,
@@ -83,7 +88,18 @@ Return valid JSON only.
               listingImprovements: { type: "ARRAY", items: { type: "STRING" } },
               limitations: { type: "STRING" },
             },
-            required: ["summary", "priceContext", "warningSigns", "positiveSignals", "safetyAdvice", "questionsForSeller", "recommendedAction", "conditionPriceContext", "listingImprovements", "limitations"],
+            required: [
+              "summary",
+              "priceContext",
+              "warningSigns",
+              "positiveSignals",
+              "safetyAdvice",
+              "questionsForSeller",
+              "recommendedAction",
+              "conditionPriceContext",
+              "listingImprovements",
+              "limitations",
+            ],
           },
         },
       });
@@ -98,7 +114,9 @@ Return valid JSON only.
       try {
         parsedData = JSON.parse(response.text);
       } catch (parseError) {
-        throw new Error(`Failed to parse JSON from model ${model}: ${parseError.message}`);
+        throw new Error(
+          `Failed to parse JSON from model ${model}: ${parseError.message}`,
+        );
       }
 
       return {
@@ -108,12 +126,18 @@ Return valid JSON only.
       };
     } catch (error) {
       lastError = error;
-      console.warn(`Model "${model}" failed, trying next fallback... Error:`, error.message);
+      console.warn(
+        `Model "${model}" failed, trying next fallback... Error:`,
+        error.message,
+      );
     }
   }
 
   // If all 5 models fail
-  console.error("All Gemini fallback models failed. Last error:", lastError?.message);
+  console.error(
+    "All Gemini fallback models failed. Last error:",
+    lastError?.message,
+  );
   return {
     available: false,
     explanation:
