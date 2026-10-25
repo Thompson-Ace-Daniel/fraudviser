@@ -3,6 +3,7 @@ dns.setServers(["1.1.1.1", "8.8.8.8"]);
 import express from "express";
 import cors from "cors";
 import mongoose from "mongoose";
+import "dotenv/config";
 import { DATABASE_URL, PORT } from "./constants/utils.js";
 import { apiRouter } from "./routes/api.js";
 import { authRouter } from "./routes/auth.js";
