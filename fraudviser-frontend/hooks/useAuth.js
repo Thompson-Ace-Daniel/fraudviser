@@ -1,8 +1,2 @@
-import { useContext } from "react";
-import AuthContext from "../context/auth-context.js";
-
-export default function useAuth() {
-  const value = useContext(AuthContext);
-  if (!value) throw new Error("useAuth must be used within AuthProvider");
-  return value;
-}
+// Compatibility shim: canonical module moved to src/hooks/useAuth.js.
+export { default } from "../src/hooks/useAuth.js";

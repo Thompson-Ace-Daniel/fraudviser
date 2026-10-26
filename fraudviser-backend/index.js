@@ -5,21 +5,21 @@ import dns from "node:dns";
 import { DATABASE_URL, PORT } from "./constants/utils.js";
 import { apiRouter } from "./routes/api.js";
 import { authRouter } from "./routes/auth.js";
+import { errorHandler, notFound } from "./middleware/errors.js";
+import { isOriginAllowed, securityHeaders } from "./middleware/security.js";
 
-// Safe IPv4 routing for serverless clouds
 dns.setDefaultResultOrder("ipv4first");
 
 const app = express();
 
-// --- CORS Configuration ---
-const allowedOrigins = (process.env.FRONTEND_ORIGIN || "http://localhost:5173")
-  .split(",")
-  .map((origin) => origin.trim());
+app.set("trust proxy", 1);
+app.disable("x-powered-by");
+app.use(securityHeaders);
 
 app.use(
   cors({
     origin: (origin, callback) =>
-      !origin || allowedOrigins.includes(origin)
+      isOriginAllowed(origin)
         ? callback(null, true)
         : callback(new Error("Origin not allowed.")),
     credentials: true,
@@ -28,39 +28,7 @@ app.use(
 
 app.use(express.json({ limit: "1mb" }));
 
-// --- 🔌 Serverless Database Connection Middleware ---
-// This ensures MongoDB is connected before processing ANY route requests on Vercel
-const ensureDatabaseConnected = async (req, res, next) => {
-  if (mongoose.connection.readyState >= 1) {
-    return next();
-  }
-
-  if (!DATABASE_URL) {
-    console.warn(
-      "⚠️ DATABASE_URL is not configured; database endpoints are unavailable.",
-    );
-    return next();
-  }
-
-  try {
-    await mongoose.connect(DATABASE_URL, {
-      serverSelectionTimeoutMS: 5000,
-      connectTimeoutMS: 10000,
-      socketTimeoutMS: 45000,
-    });
-    console.log("✅ MongoDB cloud connection established");
-    next();
-  } catch (error) {
-    console.error(`❌ MongoDB cloud connection failed: ${error.message}`);
-    // Gracefully handle database drops without freezing the execution context
-    res.status(500).json({ error: "Database connection failed" });
-  }
-};
-
-// Global Middleware Engagement
-app.use(ensureDatabaseConnected);
-
-// --- Base Routes ---
+// --- Base routes ---
 app.get("/", (_req, res) => res.json({ message: "Fraudviser API" }));
 
 app.get("/api/health", (_req, res) => {
@@ -76,27 +44,44 @@ app.get("/api/health", (_req, res) => {
 app.use("/api/auth", authRouter);
 app.use("/api", apiRouter);
 
-// --- Error Handling Middleware ---
-app.use((req, res) => res.status(404).json({ error: "Endpoint not found" }));
+app.use(notFound);
+app.use(errorHandler);
 
-app.use((err, _req, res, _next) => {
-  console.error("API error:", err.message);
-  res
-    .status(err.status || 500)
-    .json({ error: err.status ? err.message : "Unexpected server error" });
-});
+// --- Database Connection & Server Startup ---
+const startServer = async () => {
+  try {
+    if (DATABASE_URL) {
+      await mongoose.connect(DATABASE_URL, {
+        serverSelectionTimeoutMS: 5000,
+        connectTimeoutMS: 10000,
+        socketTimeoutMS: 45000,
+      });
+      console.log("MongoDB connection established");
+    } else {
+      console.warn(
+        "DATABASE_URL is not configured; running without DB connection.",
+      );
+    }
 
-// --- Local Hybrid Listening Execution ---
-if (process.env.VERCEL !== "1") {
-  app.listen(PORT, () => {
-    console.log(`🚀 Fraudviser API listening locally on port ${PORT}`);
-  });
-}
+    if (process.env.VERCEL !== "1") {
+      app.listen(PORT, () => {
+        console.log(`Fraudviser API listening locally on port ${PORT}`);
+      });
+    }
+  } catch (error) {
+    console.error(`MongoDB connection failed: ${error.message}`);
+    process.exit(1);
+  }
+};
+
+startServer();
 
 const shutdown = async () => {
+  console.log("Shutting down gracefully...");
   await mongoose.disconnect();
   process.exit(0);
 };
+
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
 

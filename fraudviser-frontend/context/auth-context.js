@@ -1,4 +1,2 @@
-import { createContext } from "react";
-
-const AuthContext = createContext(null);
-export default AuthContext;
+// Compatibility shim: canonical module moved to src/context/auth-context.js.
+export { default } from "../src/context/auth-context.js";

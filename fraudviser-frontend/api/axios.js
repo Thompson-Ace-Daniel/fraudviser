@@ -1,9 +1,3 @@
-import axios from "axios";
-
-const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || "http://localhost:3000/api",
-  timeout: 90000,
-  withCredentials: true,
-});
-
-export default api;
+// Compatibility shim: canonical module moved to src/api/axios.js.
+export { default } from "../src/api/axios.js";
+export { default as api } from "../src/api/axios.js";

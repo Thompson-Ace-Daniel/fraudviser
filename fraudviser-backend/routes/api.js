@@ -1,21 +1,22 @@
 import { Router } from "express";
 import mongoose from "mongoose";
-import { Assessment, PriceRecord, createAnalysis, importPrices } from "../services/analysis.js";
+import { Assessment, PriceRecord, createAnalysis, importPrices, retryAnalysis } from "../services/analysis.js";
 import { requireAuth } from "./auth.js";
 import crypto from "node:crypto";
+import AssessmentFeedback from "../models/AssessmentFeedback.js";
+import { requireDatabase } from "../middleware/database.js";
+import { enforceAllowedOrigin } from "../middleware/security.js";
 
 export const apiRouter = Router();
 apiRouter.use((req, res, next) => req.path === "/market-prices/import" ? next() : requireAuth(req, res, next));
-apiRouter.use((req, res, next) => {
-  const origin = req.get("origin");
-  const allowedOrigins = (process.env.FRONTEND_ORIGIN || "http://localhost:5173").split(",").map((item) => item.trim());
-  if (req.method !== "GET" && origin && !allowedOrigins.includes(origin)) return res.status(403).json({ error: "Request origin is not allowed." });
-  next();
-});
-apiRouter.use((_req, res, next) => mongoose.connection.readyState === 1 ? next() : res.status(503).json({ error: "Database unavailable. Configure MONGODB_URL and ensure MongoDB is running." }));
+apiRouter.use(enforceAllowedOrigin);
+apiRouter.use(requireDatabase);
 
 apiRouter.post("/analysis", async (req, res, next) => {
-  try { res.status(201).json(await createAnalysis(req.body || {}, req.user._id, req.user.role)); } catch (error) { next(error); }
+  try {
+    const result = await createAnalysis(req.body || {}, req.user._id, req.user.role);
+    res.status(result.status === "completed" ? 201 : 202).json(result);
+  } catch (error) { next(error); }
 });
 apiRouter.get("/analysis", async (req, res, next) => {
   try {
@@ -27,6 +28,31 @@ apiRouter.get("/analysis", async (req, res, next) => {
 apiRouter.get("/analysis/:id", async (req, res, next) => {
   if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: "Invalid assessment ID." });
   try { const item = await Assessment.findOne({ _id: req.params.id, userId: req.user._id }).select("-userId").lean(); return item ? res.json(item) : res.status(404).json({ error: "Assessment not found." }); } catch (error) { return next(error); }
+});
+apiRouter.post("/analysis/:id/retry", async (req, res, next) => {
+  if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: "Invalid assessment ID." });
+  try {
+    const item = await Assessment.findOne({ _id: req.params.id, userId: req.user._id });
+    if (!item) return res.status(404).json({ error: "Assessment not found." });
+    if (item.status === "completed" && item.report) return res.status(409).json({ error: "This assessment is already complete." });
+    const retry = await retryAnalysis(item, req.user.role);
+    const result = item.toObject();
+    delete result.userId;
+    return res.status(retry.available ? 200 : 503).json(retry.available ? result : { error: "The AI assessment is still unavailable. Your collected source evidence remains saved.", assessment: result });
+  } catch (error) { return next(error); }
+});
+apiRouter.post("/analysis/:id/feedback", async (req, res, next) => {
+  if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: "Invalid assessment ID." });
+  const allowed = ["pricing", "source_match", "analysis", "missing_information", "other"];
+  const category = String(req.body?.category || "");
+  const message = typeof req.body?.message === "string" ? req.body.message.trim() : "";
+  if (!allowed.includes(category) || message.length < 8 || message.length > 2000) return res.status(400).json({ error: "Choose a feedback topic and enter 8 to 2,000 characters." });
+  try {
+    const belongsToUser = await Assessment.exists({ _id: req.params.id, userId: req.user._id });
+    if (!belongsToUser) return res.status(404).json({ error: "Assessment not found." });
+    const feedback = await AssessmentFeedback.create({ userId: req.user._id, assessmentId: req.params.id, category, message });
+    res.status(201).json({ id: String(feedback._id), received: true });
+  } catch (error) { next(error); }
 });
 apiRouter.get("/market-prices", async (req, res, next) => {
   try {
@@ -42,4 +68,4 @@ apiRouter.post("/market-prices/import", async (req, res, next) => {
   if (!configuredToken || suppliedToken.length !== configuredToken.length || !crypto.timingSafeEqual(Buffer.from(suppliedToken), Buffer.from(configuredToken))) return res.status(403).json({ error: "Market data imports are not enabled for this account." });
   try { res.status(201).json(await importPrices(req.body?.records, req.body?.metadata || {})); } catch (error) { next(error); }
 });
-apiRouter.post("/market-prices/refresh", (_req, res) => res.status(503).json({ error: "No external market-data provider is configured.", message: "No external live provider is configured. Import permitted observations or run npm run seed:demo. Demo records are labelled and are not live market data." }));
+apiRouter.post("/market-prices/refresh", (_req, res) => res.status(409).json({ error: "Market searches are listing-specific.", message: "Submit a listing analysis to search the independent Nigeria marketplaces and attach source evidence to that assessment." }));

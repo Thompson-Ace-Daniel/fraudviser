@@ -5,6 +5,8 @@ import mongoose from "mongoose";
 import User from "../models/User.js";
 import Session from "../models/Session.js";
 import AuthAttempt from "../models/AuthAttempt.js";
+import { requireDatabase } from "../middleware/database.js";
+import { enforceAllowedOrigin } from "../middleware/security.js";
 
 const scrypt = promisify(crypto.scrypt);
 export const authRouter = Router();
@@ -37,22 +39,7 @@ const safeUser = (user) => ({
   email: user.email,
   role: user.role,
 });
-const dbReady = (_req, res, next) =>
-  mongoose.connection.readyState === 1
-    ? next()
-    : res.status(503).json({
-        error:
-          "Accounts are temporarily unavailable. Please try again shortly.",
-      });
-const allowedOrigins = (process.env.FRONTEND_ORIGIN || "http://localhost:5173")
-  .split(",")
-  .map((origin) => origin.trim());
-authRouter.use((req, res, next) => {
-  const origin = req.get("origin");
-  if (req.method !== "GET" && origin && !allowedOrigins.includes(origin))
-    return res.status(403).json({ error: "Request origin is not allowed." });
-  next();
-});
+authRouter.use(enforceAllowedOrigin);
 async function limitAuthAttempts(req, res, next) {
   try {
     const windowMs = 15 * 60 * 1000;
@@ -91,7 +78,7 @@ async function limitAuthAttempts(req, res, next) {
   }
 }
 
-authRouter.use(dbReady);
+authRouter.use(requireDatabase);
 authRouter.post("/register", limitAuthAttempts, async (req, res, next) => {
   try {
     const email = String(req.body?.email || "")

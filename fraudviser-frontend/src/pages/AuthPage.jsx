@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ArrowLeft, ArrowRight, Eye, EyeOff, ShieldCheck } from "lucide-react";
-import api from "../../api/axios.js";
-import useAuth from "./useAuth.js";
+import api from "../api/axios.js";
+import useAuth from "../hooks/useAuth.js";
 
 export default function AuthPage({ mode = "login" }) {
   const isRegister = mode === "register";
@@ -29,7 +29,7 @@ export default function AuthPage({ mode = "login" }) {
     try {
       const { data } = await api.post(
         `/auth/${isRegister ? "register" : "login"}`,
-        form,
+        isRegister ? form : { email: form.email, password: form.password },
       );
       setUser(data.user);
       navigate(destination, { replace: true });
@@ -71,7 +71,7 @@ export default function AuthPage({ mode = "login" }) {
             A smarter pause before the payment.
           </h1>
           <p className="mt-4 max-w-md leading-7 text-emerald-50/75">
-            Compare listing prices, review practical risk signals and keep each
+            Compare listing prices, get practical AI guidance and keep each
             assessment together in your private workspace.
           </p>
           <div className="mt-12 rounded-2xl border border-white/15 bg-white/5 p-5">
