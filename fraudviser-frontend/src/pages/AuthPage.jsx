@@ -44,7 +44,7 @@ export default function AuthPage({ mode = "login" }) {
   };
   return (
     <main className="min-h-screen bg-[#f7f8f4] px-4 py-6 sm:px-8 sm:py-10">
-      <div className="mx-auto flex w-full max-w-6xl items-center justify-between">
+      <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-3">
         <Link
           to="/"
           className="flex items-center gap-2.5 font-bold tracking-tight text-slate-950"
@@ -56,7 +56,7 @@ export default function AuthPage({ mode = "login" }) {
         </Link>
         <Link
           to="/"
-          className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-slate-900"
+          className="inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-900 sm:gap-2 sm:text-sm"
         >
           <ArrowLeft size={16} />
           Back to home

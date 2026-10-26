@@ -28,7 +28,11 @@ export default function AnalysisResultPage() {
     api
       .get(`/analysis/${assessmentId}`)
       .then(({ data }) => {
-        if (active) setAssessment(data);
+        if (active) {
+          setAssessment(data);
+          setError("");
+          setFetchFailedFor(null);
+        }
       })
       .catch((err) => {
         if (active) {

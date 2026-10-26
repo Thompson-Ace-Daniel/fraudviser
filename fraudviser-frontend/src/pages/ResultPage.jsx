@@ -116,6 +116,42 @@ export default function ResultPage({ assessment, onBack, onNew, onRetry, retryin
   const listing = assessment?.listing || {};
   const report = assessment?.report || null;
   const legacy = !report && !["ai_unavailable", "ai_invalid"].includes(assessment?.status);
+  const isSeller = assessment?.accountRole === "seller";
+  const conclusion = report?.qualitativeConclusion || "cannot_assess";
+  const decision = conclusion === "substantial_signals_need_review"
+    ? {
+        title: isSeller ? "Address these concerns before publishing" : "Avoid this listing for now",
+        label: "Strong caution",
+        style: "border-red-200 bg-red-50 text-red-950",
+        Icon: CircleAlert,
+      }
+    : conclusion === "some_signals_need_review"
+      ? {
+          title: isSeller ? "Clarify the listing before publishing" : "Verify these details before paying",
+          label: "Check before deciding",
+          style: "border-amber-200 bg-amber-50 text-amber-950",
+          Icon: CircleAlert,
+        }
+      : conclusion === "no_specific_warning_observed"
+        ? {
+            title: "No specific warning signs found",
+            label: "No clear red flags",
+            style: "border-emerald-200 bg-emerald-50 text-emerald-950",
+            Icon: ShieldCheck,
+          }
+        : {
+            title: "Not enough evidence to decide",
+            label: "More information needed",
+            style: "border-slate-200 bg-slate-100 text-slate-950",
+            Icon: CircleAlert,
+          };
+  const reportStatus = legacy
+    ? "Older report"
+    : report
+      ? "AI report ready"
+      : assessment?.status === "ai_invalid"
+        ? "Review needs to be regenerated"
+        : "AI review unavailable";
   const validation = report?.priceValidation || {
     status: assessment?.marketEvidence?.status || "unavailable",
     currency: assessment?.marketEvidence?.currency || "NGN",
@@ -130,7 +166,6 @@ export default function ResultPage({ assessment, onBack, onNew, onRetry, retryin
     excludedSources: assessment?.marketEvidence?.excluded || [],
     sourceAttempts: assessment?.marketEvidence?.attempts || [],
   };
-  const isSeller = assessment?.accountRole === "seller";
   const complete = validation.status === "complete";
   const count = validation.validIndependentSourceCount || 0;
   const difference = validation.differenceAmount;
@@ -154,7 +189,7 @@ export default function ResultPage({ assessment, onBack, onNew, onRetry, retryin
       <div className="bg-[#0d3c2e] p-5 text-white sm:p-7">
         <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex min-w-0 items-start gap-4"><span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white/10"><ShieldCheck size={24} /></span><div className="min-w-0"><p className="text-xs font-bold uppercase tracking-[.15em] text-emerald-200">{isSeller ? "SELLER ANALYTICS" : "BUYER ANALYTICS"} · {listing.category || "MARKETPLACE LISTING"}</p><h1 className="mt-2 break-words text-2xl font-extrabold tracking-tight sm:text-3xl">{listing.productName || "Listing analysis"}</h1><p className="mt-2 break-words text-sm text-emerald-50/75">{[listing.brand, listing.model, listing.storage, label(listing.condition)].filter(Boolean).join(" · ") || listing.description}</p></div></div>
-          <span className={`w-fit shrink-0 rounded-full px-3 py-1.5 text-xs font-bold ${assessment?.status === "completed" ? "bg-emerald-200 text-emerald-950" : "bg-amber-100 text-amber-950"}`}>{legacy ? "Older report" : assessment?.status === "completed" ? "AI report ready" : "AI report pending"}</span>
+          <span className={`w-fit max-w-full shrink-0 rounded-full px-3 py-1.5 text-xs font-bold ${report ? "bg-emerald-200 text-emerald-950" : "bg-amber-100 text-amber-950"}`}>{reportStatus}</span>
         </div>
         <div className="mt-6 grid gap-3 sm:grid-cols-3">
           <div className="rounded-2xl bg-white/10 p-4"><span className="text-xs text-emerald-100/75">Your asking price</span><strong className="mt-1 block break-words text-2xl font-extrabold tabular-nums">{money(listing.price, listing.currency || "NGN")}</strong></div>
@@ -166,6 +201,8 @@ export default function ResultPage({ assessment, onBack, onNew, onRetry, retryin
     </section>
 
     {legacy && <div role="status" className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950">This older assessment does not include the current AI report or verifiable marketplace evidence. Start a new analysis for an updated review.</div>}
+
+    {report && <section className={`mb-5 rounded-3xl border p-5 shadow-sm sm:flex sm:items-start sm:gap-4 sm:p-6 ${decision.style}`} aria-labelledby="final-decision-title"><span className="mb-3 grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-white/80 sm:mb-0"><decision.Icon size={21} /></span><div className="min-w-0"><p className="text-[10px] font-extrabold uppercase tracking-[.16em]">Final decision · {decision.label}</p><h2 id="final-decision-title" className="mt-1 break-words text-xl font-extrabold tracking-tight sm:text-2xl">{decision.title}</h2><p className="mt-2 max-w-3xl break-words text-sm leading-6 opacity-90">{report.riskExplanation || report.evidenceCoverage}</p><p className="mt-3 text-xs leading-5 opacity-75">This is a recommendation based on the information available, not proof that a product or seller is genuine or fake. Verify the item and seller independently before paying.</p></div></section>}
 
     {assessment?.status !== "completed" && !legacy && <section className="mb-5 rounded-3xl border border-amber-200 bg-amber-50 p-5 sm:p-6"><div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="font-extrabold text-amber-950">AI advice is not ready yet</h2><p className="mt-1 max-w-2xl text-sm leading-6 text-amber-900">{assessment?.assessmentError || "Your listing and source search are saved. Retry when the AI service is available."}</p></div><button type="button" onClick={onRetry} disabled={retrying} className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-amber-900 px-4 py-2 text-sm font-bold text-white disabled:opacity-60">{retrying ? <LoaderCircle size={16} className="animate-spin" /> : <Sparkles size={16} />}{retrying ? "Retrying…" : "Generate AI advice"}</button></div></section>}
 
@@ -182,7 +219,7 @@ export default function ResultPage({ assessment, onBack, onNew, onRetry, retryin
       {legacy ? <p className="rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-600">No traceable marketplace observations are attached to this older report.</p> : <>
         <div className={`mb-4 rounded-2xl border p-4 ${complete ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-amber-50"}`}><strong className="text-sm text-slate-900">{complete ? "Three independent offers found" : count ? `${count} of ${validation.requiredSourceCount} independent offers found` : "A comparable price could not be verified"}</strong><p className="mt-1 text-xs leading-5 text-slate-600">{report?.evidenceCoverage || "No market price has been estimated without a matching, verifiable offer."}</p></div>
         <PriceChart asking={validation.askingPrice} sources={validation.sources || []} currency={validation.currency} />
-        {!!validation.conditionRanges?.length && <div className="mt-5"><h3 className="text-sm font-bold text-slate-900">Recent verified prices by condition</h3><p className="mt-1 text-xs leading-5 text-slate-500">Additional exact-match Nigeria offers retrieved within the last 90 days.</p><div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{validation.conditionRanges.map((range) => <article key={range.condition} className="rounded-2xl border border-slate-200 p-4"><strong className="text-sm capitalize text-slate-900">{range.label || label(range.condition)}</strong><div className="mt-3 grid grid-cols-3 gap-2">{[["Low", range.lowestPrice], ["Average", range.meanPrice], ["High", range.highestPrice]].map(([title, value]) => <div key={title}><span className="text-[10px] text-slate-500">{title}</span><strong className="mt-1 block text-xs tabular-nums text-slate-800">{money(value, range.currency || validation.currency)}</strong></div>)}</div><p className="mt-3 text-[10px] text-slate-500">{range.count} independent {range.count === 1 ? "source" : "sources"}</p></article>)}</div></div>}
+        {!!validation.conditionRanges?.length && <div className="mt-5"><h3 className="text-sm font-bold text-slate-900">Recent verified prices by condition</h3><p className="mt-1 text-xs leading-5 text-slate-500">Additional exact-match Nigeria offers retrieved within the last 90 days.</p><div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{validation.conditionRanges.map((range) => <article key={range.condition} className="rounded-2xl border border-slate-200 p-4"><strong className="text-sm capitalize text-slate-900">{range.label || label(range.condition)}</strong><div className="mt-3 grid grid-cols-3 gap-2">{[["Low", range.lowestPrice], ["Average", range.meanPrice], ["High", range.highestPrice]].map(([title, value]) => <div key={title} className="min-w-0"><span className="text-[10px] text-slate-500">{title}</span><strong className="mt-1 block break-words text-xs tabular-nums text-slate-800">{money(value, range.currency || validation.currency)}</strong></div>)}</div><p className="mt-3 text-[10px] text-slate-500">{range.count} independent {range.count === 1 ? "source" : "sources"}</p></article>)}</div></div>}
         {!!validation.sources?.length && <div className="mt-5 grid min-w-0 gap-3 md:grid-cols-2">{validation.sources.map((item, index) => <SourceCard key={`${item.sourceDomain}-${item.referenceId || index}`} item={item} index={index} currency={validation.currency} />)}</div>}
         {!validation.sources?.length && <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm leading-6 text-slate-600">No source returned a verified offer for this exact item. Include the model, size or capacity, and condition in the listing details to improve matching.</p>}
         {!!validation.sourceAttempts?.length && <details className="group mt-5 rounded-2xl border border-slate-200"><summary className="cursor-pointer p-4 text-sm font-bold text-slate-800">Research coverage ({validation.sourceAttempts.length} marketplaces)</summary><div className="grid gap-2 border-t border-slate-100 p-4 sm:grid-cols-3">{validation.sourceAttempts.map((attempt) => <div key={attempt.domain || attempt.source} className="rounded-xl bg-slate-50 p-3"><strong className="block text-xs text-slate-800">{attempt.source}</strong><span className="mt-1 block text-xs text-slate-500">{sourceStatus[attempt.status] || "Search status unavailable"}</span></div>)}</div></details>}
@@ -191,7 +228,7 @@ export default function ResultPage({ assessment, onBack, onNew, onRetry, retryin
       </>}
     </section>
 
-    {!!report?.supportedFindings?.length && <section className="mb-5 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7"><Heading icon={ShieldCheck} eyebrow="EVIDENCE NOTES" title="What the review used" description="AI observations link to the listing details or a source offer." /><div className="space-y-3">{report.supportedFindings.map((finding, index) => <article key={`${finding.message}-${index}`} className="rounded-xl border border-slate-100 p-4"><p className="text-sm leading-6 text-slate-800">{finding.message}</p><div className="mt-2 flex flex-wrap gap-2">{finding.evidenceRefs.map((reference) => { const match = /^market\.sources:(\d+)$/.exec(reference); return match ? <a key={reference} href={`#market-source-${match[1]}`} className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-bold text-emerald-900">{referenceLabel(reference)}</a> : <span key={reference} className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-semibold text-slate-600">{referenceLabel(reference)}</span>; })}</div></article>)}</div></section>}
+    {!!report?.supportedFindings?.length && <section className="mb-5 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7"><Heading icon={ShieldCheck} eyebrow="EVIDENCE NOTES" title="What the review used" description="AI observations link to the listing details or a source offer." /><div className="space-y-3">{report.supportedFindings.map((finding, index) => <article key={`${finding.message}-${index}`} className="rounded-xl border border-slate-100 p-4"><p className="break-words text-sm leading-6 text-slate-800">{finding.message}</p><div className="mt-2 flex flex-wrap gap-2">{(Array.isArray(finding.evidenceRefs) ? finding.evidenceRefs : []).map((reference) => { const match = /^market\.sources:(\d+)$/.exec(reference); return match ? <a key={reference} href={`#market-source-${match[1]}`} className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-bold text-emerald-900">{referenceLabel(reference)}</a> : <span key={reference} className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-semibold text-slate-600">{referenceLabel(reference)}</span>; })}</div></article>)}</div></section>}
 
     {report && <section className="mb-5 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7"><Heading icon={CircleAlert} eyebrow="LIMITS & OPEN QUESTIONS" title="What still needs checking" /><div className="grid gap-5 sm:grid-cols-2"><div><h3 className="text-sm font-bold text-slate-900">Information still needed</h3>{report.missingInformation?.length ? <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-6 text-slate-600">{report.missingInformation.map((item) => <li key={item}>{item}</li>)}</ul> : <p className="mt-2 text-sm text-slate-600">No additional details were identified for this review.</p>}</div><div><h3 className="text-sm font-bold text-slate-900">What this review cannot confirm</h3>{report.limitations?.length ? <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-6 text-slate-600">{report.limitations.map((item) => <li key={item}>{item}</li>)}</ul> : <p className="mt-2 text-sm text-slate-600">No additional limitations were returned.</p>}</div></div></section>}
 
