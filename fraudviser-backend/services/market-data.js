@@ -1,11 +1,6 @@
 import { createHash } from "node:crypto";
 
 export const REQUIRED_MARKET_SOURCES = 3;
-export const MARKET_SITES = [
-  { name: "Jumia Nigeria", domain: "jumia.com.ng" },
-  { name: "Konga Nigeria", domain: "konga.com" },
-  { name: "Jiji Nigeria", domain: "jiji.ng" },
-];
 export const MARKET_CONDITIONS = ["new", "used", "refurbished", "open_box", "near_expiry", "service"];
 
 const normalize = (value = "") => String(value).toLowerCase().normalize("NFKD")

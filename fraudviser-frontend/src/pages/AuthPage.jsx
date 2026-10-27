@@ -71,14 +71,14 @@ export default function AuthPage({ mode = "login" }) {
             A smarter pause before the payment.
           </h1>
           <p className="mt-4 max-w-md leading-7 text-emerald-50/75">
-            Compare listing prices, get practical AI guidance and keep each
-            assessment together in your private workspace.
+            Get a concise AI opinion, save practical next steps and keep each
+            review together in your private workspace.
           </p>
           <div className="mt-12 rounded-2xl border border-white/15 bg-white/5 p-5">
             <p className="text-sm leading-6 text-emerald-50">
               Your account keeps your assessments private to you. Sellers can
-              use the same tools to check their prices before publishing a
-              listing.
+              use the same tools to improve listing details before publishing
+              an item or service.
             </p>
           </div>
         </section>

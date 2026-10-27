@@ -36,7 +36,7 @@ export default function HistoryPage() {
           <span className="sr-only">Search assessments</span>
           <input
             className="min-w-0 flex-1 border-0 bg-transparent py-3 text-sm outline-none focus:ring-0"
-            placeholder="Search product or marketplace..."
+            placeholder="Search your saved listings..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />

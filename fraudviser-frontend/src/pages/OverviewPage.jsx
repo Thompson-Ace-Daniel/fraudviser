@@ -40,13 +40,13 @@ export default function OverviewPage() {
           </div>
           <h1 className="mt-3 max-w-2xl text-3xl font-bold leading-tight tracking-tight text-emerald-950 sm:text-4xl lg:text-5xl">
             {isSeller
-              ? "Price your next listing with context."
+              ? "Make your next listing easier to trust."
               : "Make your next purchase with confidence."}
           </h1>
           <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600">
             {isSeller
-              ? "Compare your listing against available market offers and make its details easier for buyers to verify."
-              : "Compare a listing with current market offers and get clear advice on what to check before you decide."}
+              ? "Get a concise opinion on your listing and steps to make its details clearer to buyers."
+              : "Get a concise AI opinion and practical checks before you decide to pay."}
           </p>
         </div>
         <button
@@ -69,8 +69,8 @@ export default function OverviewPage() {
             A clearer way to shop online
           </strong>
           <p className="mt-1 text-sm leading-6 text-slate-600">
-            Fraudviser compares product listings with recorded observations and
-            explains the signals it can actually see.
+            Fraudviser reviews the details you provide and explains useful
+            safety checks. Your asking price is not evaluated by AI.
           </p>
         </div>
         <span className="self-start rounded-full bg-slate-100 px-3 py-1.5 text-xs font-bold tracking-wide text-slate-600">
@@ -148,9 +148,8 @@ export default function OverviewPage() {
       <div className="mt-4 flex flex-col gap-3 rounded-xl bg-slate-100 p-4 text-sm text-slate-600 sm:flex-row sm:items-center">
         <CircleAlert size={17} className="shrink-0 text-slate-500" />
         <span className="flex-1 leading-6">
-          Price comparisons use current, source-linked offers when exact product
-          details are available. If there is not enough evidence, the report says
-          so.
+          Recommendations are opinions based on details you provide. Verify
+          important claims directly and use a payment method that protects you.
         </span>
       </div>
     </>

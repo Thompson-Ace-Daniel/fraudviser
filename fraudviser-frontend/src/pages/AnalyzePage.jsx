@@ -16,8 +16,8 @@ export default function AnalyzePage() {
         title="Get a clear next step"
         description={
           user?.role === "seller"
-            ? "See how your asking price compares and how to make the listing easier to verify."
-            : "Get AI advice, current Nigerian price research, and a practical checklist before you decide."
+            ? "Get a clear AI opinion and practical steps to make the listing easier to trust."
+            : "Get a clear AI opinion and practical steps before you pay."
         }
         action={
           <button
@@ -36,15 +36,15 @@ export default function AnalyzePage() {
       >
         <div className="mb-7 rounded-2xl bg-[#0d3c2e] p-5 text-white sm:p-6">
           <span className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[.15em] text-emerald-200">
-            <ShieldCheck size={16} /> AI market review
+            <ShieldCheck size={16} /> Buyer & seller guide
           </span>
           <h2 className="mt-3 text-xl font-extrabold sm:text-2xl">
-            Two details. A more useful decision.
+            Get a practical second opinion.
           </h2>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-emerald-50/80">
-            Describe the item, model or size, and whether it is new or used. AI
-            researches matching offers and turns the evidence into advice. Your
-            price is compared in Nigerian naira.
+            Share the listing and any details that concern you. The AI returns
+            a short recommendation and next steps. Your asking price is saved
+            for your reference and is not assessed by AI.
           </p>
         </div>
 
@@ -61,28 +61,51 @@ export default function AnalyzePage() {
                 setForm({ ...form, productName: event.target.value })
               }
               className="mt-2 block min-h-36 w-full resize-y rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-normal leading-6 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-emerald-600 focus:ring-4 focus:ring-emerald-600/10"
-              placeholder="e.g. Samsung Galaxy S23, 256GB, used, good condition. Add the exact product name, model, size or specs."
+              placeholder="e.g. Used dining table in good condition; seller asks for a deposit before viewing. Or: 2-bedroom apartment with a 1-year rent request."
             />
             <span className="mt-2 block text-xs font-normal leading-5 text-slate-500">
-              More exact details help AI find genuine like-for-like prices on Nigerian marketplaces.
+              Any product, service, rental, or deal is welcome. Include the condition and terms when you know them.
             </span>
           </label>
 
           <label className="block min-w-0 text-sm font-bold text-slate-800">
-            Asking price
+            Listing link <span className="font-normal text-slate-400">(optional)</span>
+            <input
+              type="url"
+              maxLength={2000}
+              value={form.listingUrl}
+              onChange={(event) => setForm({ ...form, listingUrl: event.target.value })}
+              className="mt-2 block min-h-14 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-normal text-slate-900 outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-600/10"
+              placeholder="https://…"
+            />
+          </label>
+
+          <label className="block min-w-0 text-sm font-bold text-slate-800">
+            What concerns you? <span className="font-normal text-slate-400">(optional)</span>
+            <textarea
+              maxLength={1500}
+              rows={2}
+              value={form.observations}
+              onChange={(event) => setForm({ ...form, observations: event.target.value })}
+              className="mt-2 block min-h-14 w-full resize-y rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-normal leading-6 text-slate-900 outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-600/10"
+              placeholder="For example: seller wants a deposit before I can see the item."
+            />
+          </label>
+
+          <label className="block min-w-0 text-sm font-bold text-slate-800">
+            Asking price <span className="font-normal text-slate-400">(optional)</span>
             <span className="mt-2 flex min-h-14 overflow-hidden rounded-2xl border border-slate-300 transition focus-within:border-emerald-600 focus-within:ring-4 focus-within:ring-emerald-600/10">
               <span className="flex items-center border-r border-slate-200 bg-slate-50 px-4 text-base font-bold text-slate-500">
                 ₦
               </span>
               <input
                 className="min-w-0 flex-1 border-0 px-3 text-base font-semibold tabular-nums outline-none focus:ring-0"
-                required
                 type="number"
                 min="1"
                 max="1000000000"
                 step="1"
                 inputMode="numeric"
-                placeholder="e.g. 480000"
+                placeholder="Enter if known"
                 value={form.price}
                 onChange={(event) =>
                   setForm({ ...form, price: event.target.value })
@@ -90,7 +113,27 @@ export default function AnalyzePage() {
               />
             </span>
             <span className="mt-2 block text-xs font-normal leading-5 text-slate-500">
-              Enter the full item price in Nigerian naira.
+              Saved for your reference only. The AI never sees or evaluates it.
+            </span>
+          </label>
+
+          <label className="block min-w-0 text-sm font-bold text-slate-800">
+            Condition <span className="font-normal text-slate-400">(optional)</span>
+            <select
+              value={form.condition}
+              onChange={(event) => setForm({ ...form, condition: event.target.value })}
+              className="mt-2 block min-h-14 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-normal text-slate-900 outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-600/10"
+            >
+              <option value="unspecified">Not specified</option>
+              <option value="new">New</option>
+              <option value="used">Used</option>
+              <option value="refurbished">Refurbished</option>
+              <option value="open_box">Open box</option>
+              <option value="near_expiry">Near expiry</option>
+              <option value="service">Service</option>
+            </select>
+            <span className="mt-2 block text-xs font-normal leading-5 text-slate-500">
+              A reference average appears only when trusted records match the exact name and condition.
             </span>
           </label>
         </div>
@@ -107,11 +150,10 @@ export default function AnalyzePage() {
             />
             <div>
               <p className="text-sm font-bold text-emerald-950">
-                Researching the listing and preparing AI advice
+                Preparing your AI opinion
               </p>
               <p className="mt-1 text-xs leading-5 text-emerald-800">
-                Checking current marketplace evidence, then generating your
-                action plan.
+                The AI opinion is prepared separately from any available market reference.
               </p>
             </div>
           </div>

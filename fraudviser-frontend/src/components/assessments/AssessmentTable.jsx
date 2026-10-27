@@ -1,5 +1,5 @@
 import { ArrowRight, Box, Plus } from "lucide-react";
-import { date, money } from "../../utils/format.js";
+import { date, hasNumber, money } from "../../utils/format.js";
 import {
   assessmentIdOf,
   getAssessmentLabel,
@@ -96,12 +96,11 @@ export default function AssessmentTable({ items, onOpen, onNew }) {
               </div>
               <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
                 <strong className="text-sm tabular-nums text-slate-900">
-                  {money(listing.price)}
+                  {hasNumber(listing.price) ? money(listing.price) : "Price not added"}
                 </strong>
                 <AssessmentBadge label={getAssessmentLabel(item)} item={item} />
               </div>
               <p className="mt-2 text-xs text-slate-500">
-                {listing.marketplace || "Market research"} ·{" "}
                 {date(item.createdAt || item.assessedAt)}
               </p>
             </article>
@@ -114,7 +113,6 @@ export default function AssessmentTable({ items, onOpen, onNew }) {
             <tr className="border-b border-slate-200 bg-slate-50">
               {[
                 "Product",
-                "Marketplace",
                 "Asking price",
                 "AI assessment",
                 "Date",
@@ -154,11 +152,8 @@ export default function AssessmentTable({ items, onOpen, onNew }) {
                       </div>
                     </div>
                   </td>
-                  <td className="px-5 py-4 text-sm text-slate-600">
-                    {listing.marketplace || "Not provided"}
-                  </td>
                   <td className="whitespace-nowrap px-5 py-4 text-sm font-semibold text-slate-800">
-                    {money(listing.price)}
+                    {hasNumber(listing.price) ? money(listing.price) : "Price not added"}
                   </td>
                   <td className="px-5 py-4">
                     <AssessmentBadge

@@ -7,7 +7,7 @@ import { assessmentIdOf } from "../utils/assessment.js";
 
 const DRAFT_KEY = "fraudviser-draft";
 
-const blankForm = { productName: "", price: "" };
+const blankForm = { productName: "", price: "", condition: "unspecified", listingUrl: "", observations: "" };
 
 function loadDraft() {
   try {
@@ -16,6 +16,9 @@ function loadDraft() {
       ...blankForm,
       productName: draft.productName || "",
       price: draft.price || "",
+      condition: draft.condition || "unspecified",
+      listingUrl: draft.listingUrl || "",
+      observations: draft.observations || "",
     };
   } catch {
     return { ...blankForm };
@@ -77,9 +80,11 @@ export function WorkspaceProvider({ children }) {
         const response = await api.post("/analysis", {
           productName: form.productName.trim(),
           description: form.productName.trim(),
+          url: form.listingUrl.trim(),
+          observations: form.observations.trim(),
           category: "Marketplace listing",
-          condition: "unspecified",
-          price: Number(form.price),
+          condition: form.condition,
+          price: form.price.trim() ? Number(form.price) : null,
           currency: "NGN",
         });
         setAssessment(response.data);
@@ -125,7 +130,7 @@ export function WorkspaceProvider({ children }) {
     setRetryingAssessment(true);
     setError("");
     try {
-      const { data } = await api.post(`/analysis/${id}/retry`);
+      const { data } = await api.post(`/analysis/${id}/retry`, { refresh: true });
       setAssessment(data);
       await refresh();
     } catch (err) {
@@ -155,8 +160,8 @@ export function WorkspaceProvider({ children }) {
     return history.filter((item) => {
       const listing = item?.listing || {};
       return `${listing.productName || ""} ${listing.model || ""} ${
-        listing.marketplace || ""
-      }`
+        listing.category || ""
+      } ${listing.observations || ""}`
         .toLowerCase()
         .includes(needle);
     });

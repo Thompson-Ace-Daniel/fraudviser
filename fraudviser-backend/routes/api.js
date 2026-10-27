@@ -34,11 +34,11 @@ apiRouter.post("/analysis/:id/retry", async (req, res, next) => {
   try {
     const item = await Assessment.findOne({ _id: req.params.id, userId: req.user._id });
     if (!item) return res.status(404).json({ error: "Assessment not found." });
-    if (item.status === "completed" && item.report) return res.status(409).json({ error: "This assessment is already complete." });
+    if (item.status === "completed" && item.report && req.body?.refresh !== true) return res.status(409).json({ error: "This assessment is already complete." });
     const retry = await retryAnalysis(item, req.user.role);
     const result = item.toObject();
     delete result.userId;
-    return res.status(retry.available ? 200 : 503).json(retry.available ? result : { error: "The AI assessment is still unavailable. Your collected source evidence remains saved.", assessment: result });
+    return res.status(retry.available ? 200 : 503).json(retry.available ? result : { error: "The AI assessment is still unavailable. Your listing remains saved.", assessment: result });
   } catch (error) { return next(error); }
 });
 apiRouter.post("/analysis/:id/feedback", async (req, res, next) => {
@@ -68,4 +68,3 @@ apiRouter.post("/market-prices/import", async (req, res, next) => {
   if (!configuredToken || suppliedToken.length !== configuredToken.length || !crypto.timingSafeEqual(Buffer.from(suppliedToken), Buffer.from(configuredToken))) return res.status(403).json({ error: "Market data imports are not enabled for this account." });
   try { res.status(201).json(await importPrices(req.body?.records, req.body?.metadata || {})); } catch (error) { next(error); }
 });
-apiRouter.post("/market-prices/refresh", (_req, res) => res.status(409).json({ error: "Market searches are listing-specific.", message: "Submit a listing analysis to search the independent Nigeria marketplaces and attach source evidence to that assessment." }));
