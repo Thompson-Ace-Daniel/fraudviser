@@ -2,7 +2,8 @@ import express from "express";
 import cors from "cors";
 import mongoose from "mongoose";
 import dns from "node:dns";
-import { DATABASE_URL, PORT } from "./constants/utils.js";
+import { PORT } from "./constants/utils.js";
+import { connectDB } from "./config/mongodb.js";
 import { apiRouter } from "./routes/api.js";
 import { authRouter } from "./routes/auth.js";
 import { errorHandler, notFound } from "./middleware/errors.js";
@@ -47,34 +48,11 @@ app.use("/api", apiRouter);
 app.use(notFound);
 app.use(errorHandler);
 
-// --- Database Connection & Server Startup ---
-const startServer = async () => {
-  try {
-    if (DATABASE_URL) {
-      await mongoose.connect(DATABASE_URL, {
-        serverSelectionTimeoutMS: 5000,
-        connectTimeoutMS: 10000,
-        socketTimeoutMS: 45000,
-      });
-      console.log("MongoDB connection established");
-    } else {
-      console.warn(
-        "DATABASE_URL is not configured; running without DB connection.",
-      );
-    }
+connectDB();
 
-    if (process.env.VERCEL !== "1") {
-      app.listen(PORT, () => {
-        console.log(`Fraudviser API listening locally on port ${PORT}`);
-      });
-    }
-  } catch (error) {
-    console.error(`MongoDB connection failed: ${error.message}`);
-    process.exit(1);
-  }
-};
-
-startServer();
+app.listen(PORT, () => {
+  console.log(`Fraudviser API listening locally on port ${PORT}`);
+});
 
 const shutdown = async () => {
   console.log("Shutting down gracefully...");
