@@ -29,6 +29,17 @@ app.use(
 
 app.use(express.json({ limit: "1mb" }));
 
+// --- Serverless DB Middleware ---
+// This ensures MongoDB connection is awaited on every incoming request
+app.use(async (_req, _res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (err) {
+    next(err);
+  }
+});
+
 // --- Base routes ---
 app.get("/", (_req, res) => res.json({ message: "Fraudviser API" }));
 
@@ -48,10 +59,9 @@ app.use("/api", apiRouter);
 app.use(notFound);
 app.use(errorHandler);
 
-
-connectDB();
-
 if (!process.env.VERCEL) {
+  connectDB();
+
   app.listen(PORT, () => {
     console.log(`Fraudviser API listening locally on port ${PORT}`);
   });
