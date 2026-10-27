@@ -67,7 +67,7 @@ export default function AssessmentTable({ items, onOpen, onNew }) {
 
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <div className="space-y-3 p-3 md:hidden">
+      <div className="space-y-3 p-3 xl:hidden">
         {items.map((item) => {
           const listing = getListing(item);
           const id = assessmentIdOf(item);
@@ -108,7 +108,7 @@ export default function AssessmentTable({ items, onOpen, onNew }) {
           );
         })}
       </div>
-      <div className="hidden overflow-x-auto md:block">
+      <div className="hidden overflow-x-auto xl:block">
         <table className="w-full min-w-[760px] border-collapse text-left">
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50">

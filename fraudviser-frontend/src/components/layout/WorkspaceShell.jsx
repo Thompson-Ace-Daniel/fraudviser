@@ -125,7 +125,7 @@ export default function WorkspaceShell() {
       >
         <button
           type="button"
-          className="flex items-center gap-2 font-bold tracking-tight"
+          className="flex shrink-0 items-center gap-2 font-bold tracking-tight"
           onClick={() => navigate("/app")}
         >
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-700 text-white">
@@ -141,7 +141,7 @@ export default function WorkspaceShell() {
             aria-label="Overview"
             title="Overview"
             onClick={() => navigate("/app")}
-            className={`rounded-lg p-2.5 ${view === "overview" ? "bg-emerald-50 text-emerald-700" : "text-slate-500"}`}
+            className={`grid min-h-11 min-w-11 shrink-0 place-items-center rounded-lg ${view === "overview" ? "bg-emerald-50 text-emerald-700" : "text-slate-500"}`}
           >
             <LayoutDashboard size={19} />
           </button>
@@ -150,7 +150,7 @@ export default function WorkspaceShell() {
             aria-label="Analyse a listing"
             title="Analyse a listing"
             onClick={startNew}
-            className={`rounded-lg p-2.5 ${view === "analyze" ? "bg-emerald-50 text-emerald-700" : "text-slate-500"}`}
+            className={`grid min-h-11 min-w-11 shrink-0 place-items-center rounded-lg ${view === "analyze" ? "bg-emerald-50 text-emerald-700" : "text-slate-500"}`}
           >
             <Activity size={19} />
           </button>
@@ -159,7 +159,7 @@ export default function WorkspaceShell() {
             aria-label="Assessment history"
             title="History"
             onClick={() => navigate("/history")}
-            className={`rounded-lg p-2.5 ${view === "history" ? "bg-emerald-50 text-emerald-700" : "text-slate-500"}`}
+            className={`grid min-h-11 min-w-11 shrink-0 place-items-center rounded-lg ${view === "history" ? "bg-emerald-50 text-emerald-700" : "text-slate-500"}`}
           >
             <History size={19} />
           </button>
