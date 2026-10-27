@@ -64,8 +64,7 @@ export default function AnalyzePage() {
               placeholder="e.g. Samsung Galaxy S23, 256GB, used, good condition. Add the exact product name, model, size or specs."
             />
             <span className="mt-2 block text-xs font-normal leading-5 text-slate-500">
-              More exact details help AI find genuine like-for-like prices on
-              Jumia and other Nigeria marketplaces.
+              More exact details help AI find genuine like-for-like prices on Nigerian marketplaces.
             </span>
           </label>
 
