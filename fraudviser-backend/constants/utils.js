@@ -2,10 +2,14 @@ import dotenv from "dotenv";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-dotenv.config({
-  path: path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../.env"),
-});
+if (!process.env.VERCEL) {
+  dotenv.config({
+    path: path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../.env"),
+  });
+}
 
+export const PORT = Number(process.env.PORT) || 3000;
+export const DATABASE_NAME = "fraudviser";
 export const PORT = Number(process.env.PORT) || 3000;
 export const DATABASE_NAME = "fraudviser";
 
@@ -38,4 +42,4 @@ const rawMongoUrl =
   process.env.DATABASE_URL ||
   process.env.MONGODB_URI;
 
-export const DATABASE_URL = resolveDatabaseUrl(rawMongoUrl);
+export const DATABASE_URL = resolveDatabaseUrl(rawMongoUrl)
