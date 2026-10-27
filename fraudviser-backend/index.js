@@ -48,19 +48,22 @@ app.use("/api", apiRouter);
 app.use(notFound);
 app.use(errorHandler);
 
+
 connectDB();
 
-app.listen(PORT, () => {
-  console.log(`Fraudviser API listening locally on port ${PORT}`);
-});
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`Fraudviser API listening locally on port ${PORT}`);
+  });
 
-const shutdown = async () => {
-  console.log("Shutting down gracefully...");
-  await mongoose.disconnect();
-  process.exit(0);
-};
+  const shutdown = async () => {
+    console.log("Shutting down gracefully...");
+    await mongoose.disconnect();
+    process.exit(0);
+  };
 
-process.on("SIGINT", shutdown);
-process.on("SIGTERM", shutdown);
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
+}
 
 export default app;

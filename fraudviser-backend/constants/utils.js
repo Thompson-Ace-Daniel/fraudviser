@@ -10,8 +10,6 @@ if (!process.env.VERCEL) {
 
 export const PORT = Number(process.env.PORT) || 3000;
 export const DATABASE_NAME = "fraudviser";
-export const PORT = Number(process.env.PORT) || 3000;
-export const DATABASE_NAME = "fraudviser";
 
 /**
  * Resolve the MongoDB connection string, ensuring it points at the
